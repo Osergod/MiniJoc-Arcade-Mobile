@@ -1079,24 +1079,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1a24db871d366ed4eb24dceb825b866e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  input: {fileID: 74038394}
-  touchInputAction:
-    m_Name: Touch Input
-    m_Type: 0
-    m_ExpectedControlType: 
-    m_Id: 75bd0d4f-3a2c-4f87-9843-682a186ad50a
-    m_Processors: 
-    m_Interactions: 
-    m_SingletonActionBindings:
-    - m_Name: 
-      m_Id: 45e3d681-44f2-49d8-930f-f1a982362dd4
-      m_Path: <Touchscreen>/delta
-      m_Interactions: 
-      m_Processors: 
-      m_Groups: 
-      m_Action: Touch Input
-      m_Flags: 0
-    m_Flags: 0
+  jumpForce: 10
+  moveSpeed: 5
+  laneSwitchSpeed: 10
+  swipeThreshold: 50
+  groundCheck: {fileID: 402222921}
+  groundCheckRadius: 0.2
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 0
+  lanePositions:
+  - -2
+  - 0
+  - 2
+  currentLane: 1
+  inputDebugText: {fileID: 0}
 --- !u!136 &1983775043
 CapsuleCollider:
   m_ObjectHideFlags: 0
