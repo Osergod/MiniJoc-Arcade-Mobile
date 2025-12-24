@@ -2,48 +2,65 @@ using UnityEngine;
 
 public class MobileOptimizedFog : MonoBehaviour
 {
-    [Header("Fog Settings - MOBILE OPTIMIZED")]
-    [SerializeField] private Color fogColor = new Color(0.5f, 0.6f, 0.7f, 1f);
-    [SerializeField] private float fogStart = 15f;
-    [SerializeField] private float fogEnd = 40f;
+    [Header("Fog Settings - HAZLA VISIBLE")]
+    [SerializeField] private Color fogColor = new Color(0.35f, 0.45f, 0.55f, 1f);
+    [SerializeField] private float fogStart = 3f;
+    [SerializeField] private float fogEnd = 20f;
+    
+    [Header("Fog Density (para Exponential)")]
+    [SerializeField] private float fogDensity = 0.035f;
+    
+    [Header("Fog Mode")]
+    [SerializeField] private bool useLinearFog = false;
+    [SerializeField] private bool useExponentialSquared = false;
     
     [Header("Performance Optimizations")]
-    [SerializeField] private bool useLinearFog = true; // Mejor para móvil
     [SerializeField] private bool disableOnLowEnd = true;
-    [SerializeField] private int targetFPS = 30; // Para móvil
+    [SerializeField] private int targetFPS = 30;
     
     [Header("Dynamic Adjustments")]
     [SerializeField] private bool adjustWithDistance = true;
-    [SerializeField] private float minFogEnd = 25f;
-    [SerializeField] private float maxFogEnd = 60f;
+    [SerializeField] private float minFogEnd = 15f;
+    [SerializeField] private float maxFogEnd = 30f;
+    
+    [Header("Fog Pulso")]
+    [SerializeField] private bool useFogPulse = false;
+    [SerializeField] private float pulseSpeed = 0.5f;
+    [SerializeField] private float pulseAmount = 3f;
+    
+    [Header("Niebla en Cielo (Material)")]
+    [SerializeField] private Material skyboxWithFog;
+    private Material originalSkybox;
     
     void Start()
     {
+        // Guardar skybox original
+        originalSkybox = RenderSettings.skybox;
+        
         // Optimizar para móvil
         OptimizeForMobile();
         
-        // Aplicar niebla
+        // Aplicar niebla MÁS VISIBLE
         ApplyFog();
         
-        // Ajustar FPS para móvil (ahorra batería)
+        // Aplicar skybox con niebla si se especificó
+        if (skyboxWithFog != null)
+        {
+            RenderSettings.skybox = skyboxWithFog;
+        }
+        
+        // Ajustar FPS
         Application.targetFrameRate = targetFPS;
     }
     
     void OptimizeForMobile()
     {
-        // Detectar dispositivo bajo
-        if (disableOnLowEnd && SystemInfo.systemMemorySize < 2000) // Menos de 2GB RAM
+        if (disableOnLowEnd && SystemInfo.systemMemorySize < 2000)
         {
-            Debug.Log("Low-end device detected. Disabling fog for performance.");
+            Debug.Log("Low-end device. Fog DISABLED.");
             RenderSettings.fog = false;
-            enabled = false; // Desactivar script
+            enabled = false;
             return;
-        }
-        
-        // Forzar Linear fog (más barato que Exponential)
-        if (useLinearFog)
-        {
-            RenderSettings.fogMode = FogMode.Linear;
         }
     }
     
@@ -54,65 +71,118 @@ public class MobileOptimizedFog : MonoBehaviour
         
         if (useLinearFog)
         {
+            RenderSettings.fogMode = FogMode.Linear;
+            RenderSettings.fogStartDistance = fogStart;
+            RenderSettings.fogEndDistance = fogEnd;
+        }
+        else if (useExponentialSquared)
+        {
+            RenderSettings.fogMode = FogMode.ExponentialSquared;
+            RenderSettings.fogDensity = fogDensity * 1.5f;
+        }
+        else
+        {
+            RenderSettings.fogMode = FogMode.Exponential;
+            RenderSettings.fogDensity = fogDensity;
+        }
+        
+        Debug.Log($"Fog APPLIED: Mode={RenderSettings.fogMode}, Density={RenderSettings.fogDensity}, Start={fogStart}, End={fogEnd}");
+    }
+    
+    void Update()
+    {
+        if (!RenderSettings.fog) return;
+        
+        if (useFogPulse)
+        {
+            float pulse = Mathf.Sin(Time.time * pulseSpeed) * pulseAmount;
+            float pulsedFogEnd = fogEnd + pulse;
+            RenderSettings.fogEndDistance = Mathf.Clamp(pulsedFogEnd, minFogEnd, maxFogEnd);
+        }
+        
+        if (adjustWithDistance)
+        {
+            AdjustFogWithDistance();
+        }
+    }
+    
+    void AdjustFogWithDistance()
+    {
+        float playerZ = 0f;
+        
+        // DESCOMENTA Y AJUSTA:
+        // GameObject player = GameObject.FindGameObjectWithTag("Player");
+        // if (player != null) playerZ = player.transform.position.z;
+        
+        float progress = Mathf.Clamp01(playerZ / 1000f);
+        float currentFogEnd = Mathf.Lerp(minFogEnd, maxFogEnd, progress);
+        
+        if (RenderSettings.fogMode == FogMode.Linear)
+        {
+            RenderSettings.fogEndDistance = currentFogEnd;
+        }
+        else
+        {
+            float currentDensity = Mathf.Lerp(fogDensity * 0.8f, fogDensity * 1.2f, progress);
+            RenderSettings.fogDensity = currentDensity;
+        }
+    }
+    
+    public void MakeFogMoreVisible()
+    {
+        if (RenderSettings.fogMode == FogMode.Linear)
+        {
+            fogEnd = 15f;
+            fogStart = 2f;
             RenderSettings.fogStartDistance = fogStart;
             RenderSettings.fogEndDistance = fogEnd;
         }
         else
         {
-            // Exponential es más pesado, usar densidad baja
-            RenderSettings.fogMode = FogMode.Exponential;
-            RenderSettings.fogDensity = 0.015f; // MUY baja para móvil
+            fogDensity = 0.05f;
+            RenderSettings.fogDensity = fogDensity;
         }
+        
+        Debug.Log("Fog MADE MORE VISIBLE");
     }
     
-    void Update()
+    public void SetFogVeryDense()
     {
-        if (!adjustWithDistance || !RenderSettings.fog) return;
+        useLinearFog = false;
+        useExponentialSquared = true;
+        fogDensity = 0.06f;
+        RenderSettings.fogMode = FogMode.ExponentialSquared;
+        RenderSettings.fogDensity = fogDensity;
+        fogColor = new Color(0.3f, 0.4f, 0.5f);
+        RenderSettings.fogColor = fogColor;
         
-        // Ajustar niebla basado en distancia del jugador (opcional)
-        // Esto simula que la niebla se adapta a tu velocidad
-        float playerZ = 0f;
-        
-        // Obtén la posición Z del jugador de tu PlayerController
-        // Ejemplo: playerZ = PlayerController.instance.transform.position.z;
-        
-        // Niebla más densa cuanto más avanzas
-        float progress = Mathf.Clamp01(playerZ / 1000f);
-        float currentFogEnd = Mathf.Lerp(minFogEnd, maxFogEnd, progress);
-        
-        RenderSettings.fogEndDistance = currentFogEnd;
+        Debug.Log("Fog set to VERY DENSE");
     }
     
-    // Método para activar/desactivar dinámicamente
+    public void ResetToNormalFog()
+    {
+        useLinearFog = false;
+        useExponentialSquared = false;
+        fogDensity = 0.035f;
+        RenderSettings.fogMode = FogMode.Exponential;
+        RenderSettings.fogDensity = fogDensity;
+        fogColor = new Color(0.35f, 0.45f, 0.55f);
+        RenderSettings.fogColor = fogColor;
+        
+        Debug.Log("Fog reset to NORMAL");
+    }
+    
     public void SetFogEnabled(bool enabled)
     {
         RenderSettings.fog = enabled;
-        
-        if (!enabled)
-        {
-            // Guardar batería desactivando updates
-            this.enabled = false;
-        }
     }
     
-    // Cambiar color de niebla (para efectos)
-    public void ChangeFogColor(Color newColor, float duration = 1f)
+    // Para restaurar skybox al salir
+    void OnDestroy()
     {
-        StartCoroutine(TransitionFogColor(newColor, duration));
-    }
-    
-    private System.Collections.IEnumerator TransitionFogColor(Color targetColor, float duration)
-    {
-        Color startColor = RenderSettings.fogColor;
-        float elapsed = 0f;
-        
-        while (elapsed < duration)
+        if (originalSkybox != null)
         {
-            RenderSettings.fogColor = Color.Lerp(startColor, targetColor, elapsed / duration);
-            elapsed += Time.deltaTime;
-            yield return null;
+            RenderSettings.skybox = originalSkybox;
         }
-        
-        RenderSettings.fogColor = targetColor;
     }
 }
