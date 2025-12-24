@@ -8,8 +8,8 @@ public class AdvancedGroundGenerator : MonoBehaviour
     {
         public GameObject prefab;
         public int poolSize;
-        public Queue<GameObject> availableObjects = new Queue<GameObject>();
-        public List<GameObject> activeObjects = new List<GameObject>();
+        [HideInInspector] public Queue<GameObject> availableObjects = new Queue<GameObject>();
+        [HideInInspector] public List<GameObject> activeObjects = new List<GameObject>();
     }
     
     [Header("Player Reference")]
@@ -39,7 +39,9 @@ public class AdvancedGroundGenerator : MonoBehaviour
     {
         if (player == null)
         {
-            player = GameObject.FindGameObjectWithTag("Player").transform;
+            GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+            if (playerObj != null)
+                player = playerObj.transform;
         }
         
         // Inicializar pools
@@ -120,7 +122,7 @@ public class AdvancedGroundGenerator : MonoBehaviour
         float segmentEnd = segmentZ + groundSegmentLength / 2;
         
         // Calcular densidad de obstáculos basada en distancia
-        float gameProgress = segmentZ / 1000f; // Ajusta según tu juego
+        float gameProgress = segmentZ / 1000f;
         float obstacleDensity = obstacleDensityCurve.Evaluate(gameProgress);
         
         // Generar obstáculos
@@ -130,7 +132,7 @@ public class AdvancedGroundGenerator : MonoBehaviour
         GenerateCoins(segment, segmentStart, segmentEnd);
         
         // Generar power-ups (menos frecuentes)
-        if (Random.value < 0.1f) // 10% de chance por segmento
+        if (Random.value < 0.1f)
         {
             GeneratePowerUp(segment, segmentStart, segmentEnd);
         }
@@ -139,7 +141,7 @@ public class AdvancedGroundGenerator : MonoBehaviour
     void GenerateObstacles(Transform parent, float startZ, float endZ, float density)
     {
         int maxObstacles = Mathf.FloorToInt((endZ - startZ) / minObstacleDistance * density);
-        int obstacleCount = Random.Range(1, maxObstacles + 1);
+        int obstacleCount = Random.Range(1, Mathf.Max(1, maxObstacles + 1));
         
         List<float> usedPositions = new List<float>();
         
@@ -159,12 +161,12 @@ public class AdvancedGroundGenerator : MonoBehaviour
             usedPositions.Add(obstacleZ);
             
             // Seleccionar carril
-            int lane = Random.Range(0, numberOfLanes);
-            float xPos = (lane - (numberOfLanes - 1) / 2f) * laneWidth;
+            int laneIndex = Random.Range(0, numberOfLanes);
+            float xPosition = (laneIndex - (numberOfLanes - 1) / 2f) * laneWidth;
             
             // Obtener obstáculo del pool
             GameObject obstacle = GetFromPool(obstaclePool);
-            obstacle.transform.position = new Vector3(xPos, 0.5f, obstacleZ);
+            obstacle.transform.position = new Vector3(xPosition, 0.5f, obstacleZ);
             obstacle.transform.parent = parent;
             obstacle.SetActive(true);
             
@@ -176,36 +178,36 @@ public class AdvancedGroundGenerator : MonoBehaviour
     void GenerateCoins(Transform parent, float startZ, float endZ)
     {
         int coinCount = Random.Range(5, 12);
-        float coinsPerRow = 3f; // Coins en fila
-        
+        float coinsPerRow = 3f;
+
         for (int i = 0; i < coinCount; i++)
         {
             float coinZ = Random.Range(startZ + 1f, endZ - 1f);
             int pattern = Random.Range(0, 3);
-            
+
             switch (pattern)
             {
                 case 0: // Fila recta
-                    for (int lane = 0; lane < numberOfLanes; lane++)
+                    for (int laneIndex = 0; laneIndex < numberOfLanes; laneIndex++)
                     {
-                        float xPos = (lane - (numberOfLanes - 1) / 2f) * laneWidth;
-                        SpawnCoin(parent, xPos, coinZ);
+                        float laneXPos = (laneIndex - (numberOfLanes - 1) / 2f) * laneWidth;
+                        SpawnCoin(parent, laneXPos, coinZ);
                     }
                     break;
-                    
+
                 case 1: // Patrón zigzag
                     int startLane = Random.Range(0, numberOfLanes);
                     for (int j = 0; j < coinsPerRow; j++)
                     {
-                        float xPos = ((startLane + j) % numberOfLanes - (numberOfLanes - 1) / 2f) * laneWidth;
-                        SpawnCoin(parent, xPos, coinZ + j * 0.5f);
+                        float zigzagXPos = ((startLane + j) % numberOfLanes - (numberOfLanes - 1) / 2f) * laneWidth;
+                        SpawnCoin(parent, zigzagXPos, coinZ + j * 0.5f);
                     }
                     break;
-                    
+
                 case 2: // Monedas individuales
-                    int lane = Random.Range(0, numberOfLanes);
-                    float xPos = (lane - (numberOfLanes - 1) / 2f) * laneWidth;
-                    SpawnCoin(parent, xPos, coinZ);
+                    int singleLane = Random.Range(0, numberOfLanes);
+                    float singleXPos = (singleLane - (numberOfLanes - 1) / 2f) * laneWidth;
+                    SpawnCoin(parent, singleXPos, coinZ);
                     break;
             }
         }
@@ -225,11 +227,11 @@ public class AdvancedGroundGenerator : MonoBehaviour
     void GeneratePowerUp(Transform parent, float startZ, float endZ)
     {
         float powerUpZ = Random.Range(startZ + 2f, endZ - 2f);
-        int lane = Random.Range(0, numberOfLanes);
-        float xPos = (lane - (numberOfLanes - 1) / 2f) * laneWidth;
+        int laneIndex = Random.Range(0, numberOfLanes);
+        float xPosition = (laneIndex - (numberOfLanes - 1) / 2f) * laneWidth;
         
         GameObject powerUp = GetFromPool(powerUpPool);
-        powerUp.transform.position = new Vector3(xPos, 1f, powerUpZ);
+        powerUp.transform.position = new Vector3(xPosition, 1f, powerUpZ);
         powerUp.transform.parent = parent;
         powerUp.SetActive(true);
     }
@@ -246,6 +248,8 @@ public class AdvancedGroundGenerator : MonoBehaviour
     
     void RecycleOldSegments()
     {
+        if (player == null) return;
+        
         float recycleZ = player.position.z - (segmentsBehind * groundSegmentLength);
         
         for (int i = segmentStartZ.Count - 1; i >= 0; i--)
@@ -262,8 +266,6 @@ public class AdvancedGroundGenerator : MonoBehaviour
     void RecycleSegmentAtZ(float segmentZ)
     {
         // Buscar y reciclar todos los objetos en este segmento Z
-        // Esto requiere que los hijos tengan referencias o tags específicos
-        // Implementación simplificada:
         foreach (GameObject segment in groundPool.activeObjects.ToArray())
         {
             if (Mathf.Abs(segment.transform.position.z - segmentZ) < 0.1f)
@@ -277,7 +279,14 @@ public class AdvancedGroundGenerator : MonoBehaviour
     
     void RecycleChildren(Transform parent)
     {
+        // Crear lista temporal para evitar modificar mientras iteramos
+        List<Transform> children = new List<Transform>();
         foreach (Transform child in parent)
+        {
+            children.Add(child);
+        }
+        
+        foreach (Transform child in children)
         {
             if (child.CompareTag("Obstacle"))
                 ReturnToPool(obstaclePool, child.gameObject);
@@ -285,14 +294,19 @@ public class AdvancedGroundGenerator : MonoBehaviour
                 ReturnToPool(coinPool, child.gameObject);
             else if (child.CompareTag("PowerUp"))
                 ReturnToPool(powerUpPool, child.gameObject);
+            else
+                Destroy(child.gameObject);
         }
     }
     
     // Método para limpiar todo
     public void ResetGenerator()
     {
-        foreach (GameObject segment in groundPool.activeObjects.ToArray())
+        // Retornar todo al pool
+        while (groundPool.activeObjects.Count > 0)
         {
+            GameObject segment = groundPool.activeObjects[0];
+            RecycleChildren(segment.transform);
             ReturnToPool(groundPool, segment);
         }
         
@@ -303,6 +317,25 @@ public class AdvancedGroundGenerator : MonoBehaviour
         for (int i = 0; i < segmentsAhead; i++)
         {
             GenerateNextSegment();
+        }
+    }
+    
+    // Debug en editor
+    void OnDrawGizmosSelected()
+    {
+        if (!Application.isPlaying) return;
+        
+        Gizmos.color = Color.green;
+        Gizmos.DrawWireSphere(new Vector3(0, 0, nextGroundZ), 2f);
+        
+        Gizmos.color = Color.blue;
+        for (int i = 0; i < numberOfLanes; i++)
+        {
+            float laneX = (i - (numberOfLanes - 1) / 2f) * laneWidth;
+            Gizmos.DrawLine(
+                new Vector3(laneX, 0, player.position.z - 20),
+                new Vector3(laneX, 0, player.position.z + 20)
+            );
         }
     }
 }
