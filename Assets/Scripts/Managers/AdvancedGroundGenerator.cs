@@ -42,13 +42,25 @@ public class AdvancedGroundGenerator : MonoBehaviour
             GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
             if (playerObj != null)
                 player = playerObj.transform;
+            else
+                Debug.LogError("No player found with tag 'Player'");
         }
         
-        // Inicializar pools
-        InitializePool(groundPool);
-        InitializePool(obstaclePool);
-        InitializePool(coinPool);
-        InitializePool(powerUpPool);
+        // Inicializar pools solo si tienen prefab
+        if (groundPool.prefab != null)
+            InitializePool(groundPool);
+        else
+            Debug.LogError("Ground Pool prefab is not assigned!");
+            
+        if (obstaclePool.prefab != null)
+            InitializePool(obstaclePool);
+            
+        if (coinPool.prefab != null)
+            InitializePool(coinPool);
+            
+        // PowerUp pool es opcional
+        if (powerUpPool.prefab != null && powerUpPool.poolSize > 0)
+            InitializePool(powerUpPool);
         
         // Generar suelo inicial
         for (int i = 0; i < segmentsAhead; i++)
@@ -73,6 +85,12 @@ public class AdvancedGroundGenerator : MonoBehaviour
     
     void InitializePool(GroundPool pool)
     {
+        if (pool.prefab == null)
+        {
+            Debug.LogWarning($"Cannot initialize pool with null prefab");
+            return;
+        }
+        
         for (int i = 0; i < pool.poolSize; i++)
         {
             GameObject obj = Instantiate(pool.prefab, Vector3.zero, Quaternion.identity, transform);
@@ -83,9 +101,15 @@ public class AdvancedGroundGenerator : MonoBehaviour
     
     GameObject GetFromPool(GroundPool pool)
     {
+        if (pool.prefab == null)
+        {
+            Debug.LogWarning($"Trying to get object from pool with null prefab!");
+            return null;
+        }
+        
         if (pool.availableObjects.Count == 0)
         {
-            // Crear nuevo objeto si el pool está vacío
+            // Expandir pool dinámicamente
             GameObject newObj = Instantiate(pool.prefab, Vector3.zero, Quaternion.identity, transform);
             pool.availableObjects.Enqueue(newObj);
         }
@@ -97,7 +121,10 @@ public class AdvancedGroundGenerator : MonoBehaviour
     
     void ReturnToPool(GroundPool pool, GameObject obj)
     {
+        if (obj == null) return;
+        
         obj.SetActive(false);
+        obj.transform.parent = transform;
         pool.activeObjects.Remove(obj);
         pool.availableObjects.Enqueue(obj);
     }
@@ -105,7 +132,11 @@ public class AdvancedGroundGenerator : MonoBehaviour
     void GenerateNextSegment()
     {
         // Obtener segmento de suelo del pool
+        if (groundPool.prefab == null) return;
+        
         GameObject groundSegment = GetFromPool(groundPool);
+        if (groundSegment == null) return;
+        
         groundSegment.transform.position = new Vector3(0, 0, nextGroundZ);
         groundSegment.SetActive(true);
         
@@ -131,17 +162,22 @@ public class AdvancedGroundGenerator : MonoBehaviour
         // Generar monedas
         GenerateCoins(segment, segmentStart, segmentEnd);
         
-        // Generar power-ups (menos frecuentes)
-        if (Random.value < 0.1f)
+        // Generar power-ups SOLO si el pool está configurado
+        if (powerUpPool.prefab != null && powerUpPool.poolSize > 0)
         {
-            GeneratePowerUp(segment, segmentStart, segmentEnd);
+            if (Random.value < 0.1f)
+            {
+                GeneratePowerUp(segment, segmentStart, segmentEnd);
+            }
         }
     }
     
     void GenerateObstacles(Transform parent, float startZ, float endZ, float density)
     {
+        if (obstaclePool.prefab == null) return;
+        
         int maxObstacles = Mathf.FloorToInt((endZ - startZ) / minObstacleDistance * density);
-        int obstacleCount = Random.Range(1, Mathf.Max(1, maxObstacles + 1));
+        int obstacleCount = Random.Range(1, Mathf.Max(2, maxObstacles + 1));
         
         List<float> usedPositions = new List<float>();
         
@@ -166,6 +202,8 @@ public class AdvancedGroundGenerator : MonoBehaviour
             
             // Obtener obstáculo del pool
             GameObject obstacle = GetFromPool(obstaclePool);
+            if (obstacle == null) continue;
+            
             obstacle.transform.position = new Vector3(xPosition, 0.5f, obstacleZ);
             obstacle.transform.parent = parent;
             obstacle.SetActive(true);
@@ -177,6 +215,8 @@ public class AdvancedGroundGenerator : MonoBehaviour
     
     void GenerateCoins(Transform parent, float startZ, float endZ)
     {
+        if (coinPool.prefab == null) return;
+        
         int coinCount = Random.Range(5, 12);
         float coinsPerRow = 3f;
 
@@ -216,6 +256,8 @@ public class AdvancedGroundGenerator : MonoBehaviour
     void SpawnCoin(Transform parent, float x, float z)
     {
         GameObject coin = GetFromPool(coinPool);
+        if (coin == null) return;
+        
         coin.transform.position = new Vector3(x, 1f, z);
         coin.transform.parent = parent;
         coin.SetActive(true);
@@ -226,11 +268,16 @@ public class AdvancedGroundGenerator : MonoBehaviour
     
     void GeneratePowerUp(Transform parent, float startZ, float endZ)
     {
+        if (powerUpPool.prefab == null || powerUpPool.poolSize <= 0)
+            return;
+        
         float powerUpZ = Random.Range(startZ + 2f, endZ - 2f);
         int laneIndex = Random.Range(0, numberOfLanes);
         float xPosition = (laneIndex - (numberOfLanes - 1) / 2f) * laneWidth;
         
         GameObject powerUp = GetFromPool(powerUpPool);
+        if (powerUp == null) return;
+        
         powerUp.transform.position = new Vector3(xPosition, 1f, powerUpZ);
         powerUp.transform.parent = parent;
         powerUp.SetActive(true);
@@ -252,34 +299,47 @@ public class AdvancedGroundGenerator : MonoBehaviour
         
         float recycleZ = player.position.z - (segmentsBehind * groundSegmentLength);
         
-        for (int i = segmentStartZ.Count - 1; i >= 0; i--)
+        // Crear copia de la lista para evitar modificar mientras iteramos
+        List<float> segmentsToRemove = new List<float>();
+        
+        foreach (float segmentZ in segmentStartZ)
         {
-            if (segmentStartZ[i] < recycleZ)
+            if (segmentZ < recycleZ)
             {
-                // Reciclar todos los objetos en este segmento
-                RecycleSegmentAtZ(segmentStartZ[i]);
-                segmentStartZ.RemoveAt(i);
+                segmentsToRemove.Add(segmentZ);
             }
+        }
+        
+        // Eliminar segmentos
+        foreach (float segmentZ in segmentsToRemove)
+        {
+            RecycleSegmentAtZ(segmentZ);
+            segmentStartZ.Remove(segmentZ);
         }
     }
     
     void RecycleSegmentAtZ(float segmentZ)
     {
-        // Buscar y reciclar todos los objetos en este segmento Z
+        // Buscar el segmento
         foreach (GameObject segment in groundPool.activeObjects.ToArray())
         {
-            if (Mathf.Abs(segment.transform.position.z - segmentZ) < 0.1f)
+            if (segment != null && Mathf.Abs(segment.transform.position.z - segmentZ) < 0.1f)
             {
-                // Reciclar hijos (obstáculos, monedas, etc.)
+                // Reciclar hijos
                 RecycleChildren(segment.transform);
+                
+                // Retornar segmento al pool
                 ReturnToPool(groundPool, segment);
+                break;
             }
         }
     }
     
     void RecycleChildren(Transform parent)
     {
-        // Crear lista temporal para evitar modificar mientras iteramos
+        if (parent == null) return;
+        
+        // Usar lista temporal
         List<Transform> children = new List<Transform>();
         foreach (Transform child in parent)
         {
@@ -288,14 +348,24 @@ public class AdvancedGroundGenerator : MonoBehaviour
         
         foreach (Transform child in children)
         {
+            if (child == null) continue;
+            
             if (child.CompareTag("Obstacle"))
+            {
                 ReturnToPool(obstaclePool, child.gameObject);
+            }
             else if (child.CompareTag("Coin"))
+            {
                 ReturnToPool(coinPool, child.gameObject);
-            else if (child.CompareTag("PowerUp"))
+            }
+            else if (child.CompareTag("PowerUp") && powerUpPool.prefab != null)
+            {
                 ReturnToPool(powerUpPool, child.gameObject);
+            }
             else
+            {
                 Destroy(child.gameObject);
+            }
         }
     }
     
@@ -303,9 +373,8 @@ public class AdvancedGroundGenerator : MonoBehaviour
     public void ResetGenerator()
     {
         // Retornar todo al pool
-        while (groundPool.activeObjects.Count > 0)
+        foreach (GameObject segment in groundPool.activeObjects.ToArray())
         {
-            GameObject segment = groundPool.activeObjects[0];
             RecycleChildren(segment.transform);
             ReturnToPool(groundPool, segment);
         }
@@ -320,7 +389,7 @@ public class AdvancedGroundGenerator : MonoBehaviour
         }
     }
     
-    // Debug en editor
+    // Debug
     void OnDrawGizmosSelected()
     {
         if (!Application.isPlaying) return;
@@ -328,14 +397,10 @@ public class AdvancedGroundGenerator : MonoBehaviour
         Gizmos.color = Color.green;
         Gizmos.DrawWireSphere(new Vector3(0, 0, nextGroundZ), 2f);
         
-        Gizmos.color = Color.blue;
-        for (int i = 0; i < numberOfLanes; i++)
-        {
-            float laneX = (i - (numberOfLanes - 1) / 2f) * laneWidth;
-            Gizmos.DrawLine(
-                new Vector3(laneX, 0, player.position.z - 20),
-                new Vector3(laneX, 0, player.position.z + 20)
-            );
-        }
+        Gizmos.color = Color.red;
+        Gizmos.DrawLine(
+            new Vector3(-10, 0, player.position.z - (segmentsBehind * groundSegmentLength)),
+            new Vector3(10, 0, player.position.z - (segmentsBehind * groundSegmentLength))
+        );
     }
 }
