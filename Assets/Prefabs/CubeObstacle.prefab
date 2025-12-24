@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 2953705084055829145}
   - component: {fileID: 596602658472539838}
   - component: {fileID: 4589132539846526885}
+  - component: {fileID: 3231727841577657909}
   m_Layer: 0
   m_Name: CubeObstacle
   m_TagString: Obstacle
@@ -105,3 +106,23 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &3231727841577657909
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481256038365708867}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 850fa5f01c63b8f459d3d407f0c2928a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  type: 0
+  damage: 1
+  isDestroyable: 0
+  moveSpeed: 2
+  moveDistance: 2
+  moveHorizontal: 1
+  rotationSpeed: 90
+  rotationAxis: {x: 0, y: 1, z: 0}
