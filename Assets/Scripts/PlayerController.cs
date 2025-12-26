@@ -3,38 +3,51 @@ using UnityEngine.InputSystem;
 
 public class PlayerController : MonoBehaviour
 {
+    // ========== ENUM DE ESTADOS ==========
+    public enum PlayerState
+    {
+        Grounded,   // En suelo, Y congelado
+        Jumping,    // Saltando, Y libre
+        Falling,    // Cayendo, Y libre
+        Sliding     // Deslizando, Y congelado
+    }
+    
+    [Header("References")]
+    public Transform groundCheck;
+    public LayerMask groundLayer;
+    
     [Header("Movement Settings")]
     public float moveSpeed = 10f;
     public float laneSwitchSpeed = 15f;
     public float laneWidth = 2.5f;
     
     [Header("Jump Settings")]
-    public float jumpForce = 8f;
-    public float gravity = -20f;
-    public Transform groundCheck;
-    public float groundCheckRadius = 0.2f;
-    public LayerMask groundLayer;
+    public float jumpForce = 12f;
+    public float gravity = -30f;
+    public float groundCheckRadius = 0.3f;
     
     [Header("Input Settings")]
     public float swipeThreshold = 50f;
-    public float holdTimeThreshold = 0.15f;
     
-    [Header("Lanes")]
-    public int currentLane = 1;
-    public int numberOfLanes = 3;
+    [Header("Auto Jump Settings")]
+    public bool enableAutoJump = true;
+    public float autoJumpIntervalMin = 3f;
+    public float autoJumpIntervalMax = 8f;
+    private float nextAutoJumpTime = 0f;
     
-    // Input states
-    private Vector2 touchStartPos;
-    private Vector2 lastTouchPos;
-    private bool isTouching = false;
-    private bool swipeProcessed = false;
-    private float touchStartTime;
+    // Estado actual
+    private PlayerState currentState = PlayerState.Grounded;
+    
+    // Variables de estado
+    private float verticalVelocity = 0f;
+    private bool isGrounded = true;
+    private int currentLane = 1;
     private float targetX;
     
-    // Jump states
-    private float verticalVelocity;
-    private bool isGrounded = true;
-    private bool isJumping = false;
+    // Input
+    private Vector2 touchStartPos;
+    private bool isTouching = false;
+    private bool swipeProcessed = false;
     
     // Components
     private Rigidbody rb;
@@ -44,31 +57,48 @@ public class PlayerController : MonoBehaviour
     {
         rb = GetComponent<Rigidbody>();
         animator = GetComponent<Animator>();
+        
+        InitializeRigidbody();
         CalculateTargetX();
         
-        // Configurar Rigidbody para salto
+        // Programar primer salto automático
+        if (enableAutoJump)
+        {
+            nextAutoJumpTime = Time.time + Random.Range(autoJumpIntervalMin, autoJumpIntervalMax);
+        }
+    }
+    
+    void InitializeRigidbody()
+    {
         if (rb != null)
         {
-            rb.useGravity = false; // Vamos a controlar la gravedad manualmente
+            // Congelar posición Y al inicio
+            rb.constraints = RigidbodyConstraints.FreezePositionY | 
+                            RigidbodyConstraints.FreezeRotation;
+            
+            // Desactivar gravedad del Rigidbody (la controlamos nosotros)
+            rb.useGravity = false;
         }
     }
     
     void Update()
     {
-        // Verificar si está en el suelo
-        CheckGround();
+        // Actualizar estado
+        UpdateState();
         
-        // Movimiento adelante
+        // Ejecutar lógica del estado actual
+        ExecuteState();
+        
+        // Manejar input (MÓVIL + TECLADO)
+        HandleMobileInput();
+        HandleKeyboardInput();
+        
+        // Movimiento horizontal
         MoveForward();
-        
-        // Manejo de input táctil
-        HandleTouchInput();
-        
-        // Aplicar gravedad
-        ApplyGravity();
-        
-        // Suavizar cambio de carril
         SmoothLaneSwitch();
+        
+        // Salto automático
+        CheckAutoJump();
         
         // Actualizar animaciones
         UpdateAnimations();
@@ -76,180 +106,132 @@ public class PlayerController : MonoBehaviour
     
     void FixedUpdate()
     {
-        // Aplicar movimiento vertical en FixedUpdate para mejor física
-        ApplyVerticalMovement();
+        // Aplicar movimiento vertical en FixedUpdate
+        if (currentState == PlayerState.Jumping || currentState == PlayerState.Falling)
+        {
+            ApplyVerticalMovement();
+        }
     }
+    
+    // ========== MÁQUINA DE ESTADOS ==========
+    
+    void UpdateState()
+    {
+        // Verificar contacto con el suelo
+        bool wasGrounded = isGrounded;
+        isGrounded = CheckGround();
+        
+        // Transiciones de estado
+        switch (currentState)
+        {
+            case PlayerState.Grounded:
+                if (!isGrounded)
+                {
+                    TransitionToState(PlayerState.Falling);
+                }
+                break;
+                
+            case PlayerState.Jumping:
+                if (verticalVelocity < 0)
+                {
+                    TransitionToState(PlayerState.Falling);
+                }
+                break;
+                
+            case PlayerState.Falling:
+                if (isGrounded)
+                {
+                    TransitionToState(PlayerState.Grounded);
+                }
+                break;
+                
+            case PlayerState.Sliding:
+                if (!IsSliding())
+                {
+                    TransitionToState(PlayerState.Grounded);
+                }
+                break;
+        }
+        
+        // Detectar aterrizaje
+        if (!wasGrounded && isGrounded && currentState != PlayerState.Grounded)
+        {
+            OnLand();
+        }
+    }
+    
+    void ExecuteState()
+    {
+        switch (currentState)
+        {
+            case PlayerState.Grounded:
+                // Y congelado, aplicar gravedad cero
+                verticalVelocity = 0f;
+                FreezeYPosition();
+                break;
+                
+            case PlayerState.Jumping:
+                // Y libre, aplicar gravedad
+                UnfreezeYPosition();
+                ApplyGravity();
+                break;
+                
+            case PlayerState.Falling:
+                // Y libre, aplicar gravedad
+                UnfreezeYPosition();
+                ApplyGravity();
+                break;
+                
+            case PlayerState.Sliding:
+                // Y congelado durante el deslizamiento
+                FreezeYPosition();
+                break;
+        }
+    }
+    
+    void TransitionToState(PlayerState newState)
+    {
+        // Salir del estado anterior
+        ExitState(currentState);
+        
+        // Entrar al nuevo estado
+        EnterState(newState);
+        
+        // Cambiar estado
+        currentState = newState;
+    }
+    
+    void EnterState(PlayerState state)
+    {
+        switch (state)
+        {
+            case PlayerState.Jumping:
+                verticalVelocity = jumpForce;
+                if (animator != null) animator.SetTrigger("Jump");
+                break;
+                
+            case PlayerState.Grounded:
+                verticalVelocity = 0f;
+                FreezeYPosition();
+                if (animator != null) animator.SetTrigger("Land");
+                break;
+                
+            case PlayerState.Sliding:
+                if (animator != null) animator.SetTrigger("Slide");
+                break;
+        }
+    }
+    
+    void ExitState(PlayerState state)
+    {
+        // Limpiar estados si es necesario
+    }
+    
+    // ========== MOVIMIENTO HORIZONTAL ==========
     
     void MoveForward()
     {
         transform.Translate(Vector3.forward * moveSpeed * Time.deltaTime);
-    }
-    
-    void CheckGround()
-    {
-        if (groundCheck != null)
-        {
-            bool wasGrounded = isGrounded;
-            isGrounded = Physics.CheckSphere(groundCheck.position, groundCheckRadius, groundLayer);
-            
-            // Si acaba de tocar el suelo
-            if (!wasGrounded && isGrounded)
-            {
-                OnLand();
-            }
-        }
-        else
-        {
-            // Fallback si no hay groundCheck
-            isGrounded = true;
-        }
-    }
-    
-    void ApplyGravity()
-    {
-        if (!isGrounded)
-        {
-            verticalVelocity += gravity * Time.deltaTime;
-            
-            // Limitar velocidad de caída
-            verticalVelocity = Mathf.Max(verticalVelocity, -20f);
-        }
-        else if (verticalVelocity < 0)
-        {
-            verticalVelocity = 0;
-            isJumping = false;
-        }
-    }
-    
-    void ApplyVerticalMovement()
-    {
-        if (!isGrounded || isJumping)
-        {
-            Vector3 movement = new Vector3(0, verticalVelocity * Time.fixedDeltaTime, 0);
-            transform.Translate(movement, Space.World);
-        }
-    }
-    
-    void HandleTouchInput()
-    {
-        // 1. DETECTAR INICIO DE TOQUE
-        if (Touchscreen.current != null && Touchscreen.current.primaryTouch.press.wasPressedThisFrame)
-        {
-            touchStartPos = Touchscreen.current.primaryTouch.position.ReadValue();
-            lastTouchPos = touchStartPos;
-            touchStartTime = Time.time;
-            isTouching = true;
-            swipeProcessed = false;
-        }
-        
-        // 2. MIENTRAS EL DEDO ESTÁ PRESIONADO
-        if (isTouching && Touchscreen.current.primaryTouch.press.isPressed)
-        {
-            Vector2 currentTouchPos = Touchscreen.current.primaryTouch.position.ReadValue();
-            Vector2 totalDelta = currentTouchPos - touchStartPos;
-            Vector2 frameDelta = currentTouchPos - lastTouchPos;
-            
-            // DETECTAR SWIPE HORIZONTAL SIN SOLTAR
-            if (!swipeProcessed && Mathf.Abs(totalDelta.x) > swipeThreshold)
-            {
-                if (totalDelta.x > 0) // Swipe derecha
-                {
-                    MoveRight();
-                }
-                else // Swipe izquierda
-                {
-                    MoveLeft();
-                }
-                swipeProcessed = true;
-            }
-            
-            lastTouchPos = currentTouchPos;
-        }
-        
-        // 3. DETECTAR FIN DE TOQUE
-        if (isTouching && Touchscreen.current.primaryTouch.press.wasReleasedThisFrame)
-        {
-            Vector2 touchEndPos = Touchscreen.current.primaryTouch.position.ReadValue();
-            float touchDuration = Time.time - touchStartTime;
-            
-            // SWIPE TRADICIONAL (si no se procesó durante el hold)
-            if (!swipeProcessed)
-            {
-                Vector2 swipeDelta = touchEndPos - touchStartPos;
-                
-                // Si el desplazamiento es muy pequeño, es un tap (salto)
-                if (swipeDelta.magnitude < swipeThreshold)
-                {
-                    Jump();
-                }
-                else // Es un swipe
-                {
-                    ProcessSwipe(swipeDelta);
-                }
-            }
-            
-            // Resetear estados
-            isTouching = false;
-            swipeProcessed = false;
-        }
-        
-        // Input de teclado para testing (opcional)
-        #if UNITY_EDITOR
-        HandleKeyboardInput();
-        #endif
-    }
-    
-    void ProcessSwipe(Vector2 swipeDelta)
-    {
-        bool isHorizontalSwipe = Mathf.Abs(swipeDelta.x) > Mathf.Abs(swipeDelta.y);
-        
-        if (isHorizontalSwipe)
-        {
-            if (swipeDelta.x > 0)
-            {
-                MoveRight();
-            }
-            else
-            {
-                MoveLeft();
-            }
-        }
-        else
-        {
-            if (swipeDelta.y > 0)
-            {
-                Jump();
-            }
-            else
-            {
-                Slide();
-            }
-        }
-    }
-    
-    void MoveLeft()
-    {
-        if (currentLane > 0)
-        {
-            currentLane--;
-            CalculateTargetX();
-            // AudioManager.Instance.PlaySound("Swipe");
-        }
-    }
-    
-    void MoveRight()
-    {
-        if (currentLane < numberOfLanes - 1)
-        {
-            currentLane++;
-            CalculateTargetX();
-            // AudioManager.Instance.PlaySound("Swipe");
-        }
-    }
-    
-    void CalculateTargetX()
-    {
-        targetX = (currentLane - 1) * laneWidth;
     }
     
     void SmoothLaneSwitch()
@@ -260,49 +242,215 @@ public class PlayerController : MonoBehaviour
         transform.position = Vector3.Lerp(currentPos, targetPos, laneSwitchSpeed * Time.deltaTime);
     }
     
-    public void Jump()
+    public void MoveLeft()
     {
-        if (isGrounded && !isJumping)
+        if (currentLane > 0)
         {
-            isGrounded = false;
-            isJumping = true;
-            verticalVelocity = jumpForce;
+            currentLane--;
+            CalculateTargetX();
+        }
+    }
+    
+    public void MoveRight()
+    {
+        if (currentLane < 2) // 0, 1, 2 = 3 carriles
+        {
+            currentLane++;
+            CalculateTargetX();
+        }
+    }
+    
+    void CalculateTargetX()
+    {
+        targetX = (currentLane - 1) * laneWidth; // Para 3 carriles: -2.5, 0, 2.5
+    }
+    
+    // ========== MOVIMIENTO VERTICAL ==========
+    
+    void ApplyGravity()
+    {
+        verticalVelocity += gravity * Time.deltaTime;
+        verticalVelocity = Mathf.Max(verticalVelocity, -20f);
+    }
+    
+    void ApplyVerticalMovement()
+    {
+        if (currentState == PlayerState.Jumping || currentState == PlayerState.Falling)
+        {
+            Vector3 movement = new Vector3(0, verticalVelocity * Time.fixedDeltaTime, 0);
+            transform.Translate(movement, Space.World);
+        }
+    }
+    
+    void FreezeYPosition()
+    {
+        if (rb != null)
+        {
+            rb.constraints = RigidbodyConstraints.FreezePositionY | 
+                            RigidbodyConstraints.FreezeRotation;
             
-            // Animación
-            if (animator != null)
+            // Mantener posición exacta en Y
+            Vector3 pos = transform.position;
+            pos.y = Mathf.Round(pos.y * 100f) / 100f;
+            transform.position = pos;
+        }
+    }
+    
+    void UnfreezeYPosition()
+    {
+        if (rb != null)
+        {
+            rb.constraints = RigidbodyConstraints.FreezeRotation;
+        }
+    }
+    
+    // ========== INPUT MÓVIL ==========
+    
+    void HandleMobileInput()
+    {
+        if (Touchscreen.current == null) return;
+        
+        // INICIO DE TOQUE
+        if (Touchscreen.current.primaryTouch.press.wasPressedThisFrame)
+        {
+            touchStartPos = Touchscreen.current.primaryTouch.position.ReadValue();
+            isTouching = true;
+            swipeProcessed = false;
+        }
+        
+        // TOQUE MANTENIDO
+        if (isTouching && Touchscreen.current.primaryTouch.press.isPressed)
+        {
+            Vector2 currentPos = Touchscreen.current.primaryTouch.position.ReadValue();
+            float deltaX = currentPos.x - touchStartPos.x;
+            
+            // SWIPE HORIZONTAL SIN SOLTAR
+            if (!swipeProcessed && Mathf.Abs(deltaX) > swipeThreshold)
             {
-                animator.SetTrigger("Jump");
+                if (deltaX > 0) MoveRight();
+                else MoveLeft();
+                
+                swipeProcessed = true;
+                touchStartPos = currentPos;
+            }
+        }
+        
+        // FIN DE TOQUE
+        if (isTouching && Touchscreen.current.primaryTouch.press.wasReleasedThisFrame)
+        {
+            Vector2 endPos = Touchscreen.current.primaryTouch.position.ReadValue();
+            Vector2 delta = endPos - touchStartPos;
+            
+            // TAP (salto) si no hubo swipe
+            if (!swipeProcessed && delta.magnitude < swipeThreshold)
+            {
+                Jump();
+            }
+            // SWIPE VERTICAL
+            else if (!swipeProcessed && Mathf.Abs(delta.y) > swipeThreshold)
+            {
+                if (delta.y > 0) Jump();
+                else Slide();
             }
             
-            // Sonido
-            // AudioManager.Instance.PlaySound("Jump");
+            isTouching = false;
+            swipeProcessed = false;
+        }
+    }
+    
+    // ========== INPUT TECLADO ==========
+    
+    void HandleKeyboardInput()
+    {
+        // MOVIMIENTO LATERAL CON FLECHAS
+        if (Keyboard.current.leftArrowKey.wasPressedThisFrame)
+        {
+            MoveLeft();
+        }
+        
+        if (Keyboard.current.rightArrowKey.wasPressedThisFrame)
+        {
+            MoveRight();
+        }
+        
+        // SALTO CON ESPACIO
+        if (Keyboard.current.spaceKey.wasPressedThisFrame)
+        {
+            Jump();
+        }
+        
+        // DESLIZAMIENTO CON FLECHA ABAJO
+        if (Keyboard.current.downArrowKey.wasPressedThisFrame)
+        {
+            Slide();
+        }
+    }
+    
+    // ========== SALTO ==========
+    
+    void Jump()
+    {
+        // Solo puede saltar desde el suelo
+        if (currentState == PlayerState.Grounded)
+        {
+            TransitionToState(PlayerState.Jumping);
+        }
+    }
+    
+    void CheckAutoJump()
+    {
+        if (enableAutoJump && Time.time >= nextAutoJumpTime)
+        {
+            if (currentState == PlayerState.Grounded)
+            {
+                Jump();
+            }
             
-            Debug.Log("Jump!");
+            // Programar próximo salto automático
+            nextAutoJumpTime = Time.time + Random.Range(autoJumpIntervalMin, autoJumpIntervalMax);
         }
     }
     
     void OnLand()
     {
-        isJumping = false;
-        
-        // Efecto de aterrizaje
-        if (animator != null)
+        if (currentState == PlayerState.Jumping || currentState == PlayerState.Falling)
         {
-            animator.SetTrigger("Land");
+            TransitionToState(PlayerState.Grounded);
         }
-        
-        // Sonido
-        // AudioManager.Instance.PlaySound("Land");
     }
+    
+    // ========== DESLIZAMIENTO ==========
     
     void Slide()
     {
-        // Tu lógica de deslizamiento
-        if (isGrounded && animator != null)
+        if (currentState == PlayerState.Grounded)
         {
-            animator.SetTrigger("Slide");
-            // AudioManager.Instance.PlaySound("Slide");
+            TransitionToState(PlayerState.Sliding);
+            // El slide dura 1 segundo
+            Invoke("EndSlide", 1f);
         }
+    }
+    
+    void EndSlide()
+    {
+        if (currentState == PlayerState.Sliding)
+        {
+            TransitionToState(PlayerState.Grounded);
+        }
+    }
+    
+    bool IsSliding()
+    {
+        // El slide está activo mientras no se haya llamado EndSlide
+        return currentState == PlayerState.Sliding;
+    }
+    
+    // ========== UTILIDADES ==========
+    
+    bool CheckGround()
+    {
+        if (groundCheck == null) return true;
+        return Physics.CheckSphere(groundCheck.position, groundCheckRadius, groundLayer);
     }
     
     void UpdateAnimations()
@@ -310,78 +458,22 @@ public class PlayerController : MonoBehaviour
         if (animator != null)
         {
             animator.SetBool("IsGrounded", isGrounded);
-            animator.SetBool("IsJumping", isJumping);
+            animator.SetBool("IsJumping", currentState == PlayerState.Jumping);
+            animator.SetBool("IsFalling", currentState == PlayerState.Falling);
+            animator.SetBool("IsSliding", currentState == PlayerState.Sliding);
             animator.SetFloat("VerticalVelocity", verticalVelocity);
         }
     }
     
-    #if UNITY_EDITOR
-    void HandleKeyboardInput()
-    {
-        if (Keyboard.current.leftArrowKey.wasPressedThisFrame)
-        {
-            MoveLeft();
-        }
-        else if (Keyboard.current.rightArrowKey.wasPressedThisFrame)
-        {
-            MoveRight();
-        }
-        else if (Keyboard.current.spaceKey.wasPressedThisFrame)
-        {
-            Jump();
-        }
-        else if (Keyboard.current.downArrowKey.wasPressedThisFrame)
-        {
-            Slide();
-        }
-    }
-    #endif
+    // ========== DEBUG ==========
     
     void OnDrawGizmosSelected()
     {
-        // Visualizar ground check
+        // Ground check
         if (groundCheck != null)
         {
             Gizmos.color = isGrounded ? Color.green : Color.red;
             Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
-        }
-        
-        // Visualizar carriles
-        Gizmos.color = Color.blue;
-        for (int i = 0; i < numberOfLanes; i++)
-        {
-            float laneX = (i - 1) * laneWidth;
-            Gizmos.DrawLine(
-                new Vector3(laneX, 0.5f, transform.position.z - 5),
-                new Vector3(laneX, 0.5f, transform.position.z + 5)
-            );
-        }
-    }
-    
-    // Para detectar colisiones con el suelo
-    void OnCollisionEnter(Collision collision)
-    {
-        if (collision.gameObject.CompareTag("Ground"))
-        {
-            isGrounded = true;
-            isJumping = false;
-            verticalVelocity = 0;
-        }
-    }
-    
-    void OnCollisionStay(Collision collision)
-    {
-        if (collision.gameObject.CompareTag("Ground"))
-        {
-            isGrounded = true;
-        }
-    }
-    
-    void OnCollisionExit(Collision collision)
-    {
-        if (collision.gameObject.CompareTag("Ground"))
-        {
-            isGrounded = false;
         }
     }
 }
