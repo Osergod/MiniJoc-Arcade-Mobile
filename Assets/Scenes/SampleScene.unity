@@ -14,7 +14,7 @@ OcclusionCullingSettings:
 RenderSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 9
-  m_Fog: 0
+  m_Fog: 1
   m_FogColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
   m_FogMode: 3
   m_FogDensity: 0.01
@@ -1253,7 +1253,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   jumpForce: 10
-  moveSpeed: 15
+  moveSpeed: 10
   laneSwitchSpeed: 10
   swipeThreshold: 50
   groundCheck: {fileID: 1856783063605152496, guid: a3d0687e243d9494eb3618ff28fa80be, type: 3}
