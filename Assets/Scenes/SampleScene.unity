@@ -1286,6 +1286,7 @@ GameObject:
   - component: {fileID: 1983775043}
   - component: {fileID: 1983775047}
   - component: {fileID: 1983775048}
+  - component: {fileID: 1983775049}
   - component: {fileID: 1983775042}
   m_Layer: 0
   m_Name: Player
@@ -1310,7 +1311,7 @@ MonoBehaviour:
   groundLayer:
     serializedVersion: 2
     m_Bits: 64
-  moveSpeed: 10
+  moveSpeed: 5
   laneSwitchSpeed: 12
   laneWidth: 2.5
   jumpForce: 15
@@ -1322,6 +1323,15 @@ MonoBehaviour:
   enableAutoJump: 0
   autoJumpIntervalMin: 3
   autoJumpIntervalMax: 8
+  verticalVelocity: 0
+  isGrounded: 1
+  currentLane: 1
+  targetX: 0
+  rb: {fileID: 0}
+  animator: {fileID: 0}
+  playerCollider: {fileID: 0}
+  originalHeight: 0
+  nextAutoJumpTime: 0
 --- !u!136 &1983775043
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -1469,6 +1479,32 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 112
   m_CollisionDetection: 0
+--- !u!114 &1983775049
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1983775041}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8fda1df7d72e9b74d9474cafdb0422e9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  verticalVelocity: 0
+  isGrounded: 0
+  rb: {fileID: 0}
+  animator: {fileID: 0}
+  playerCollider: {fileID: 0}
+  jumpForce: 0
+  gravity: 0
+  slideDuration: 0
+  slideHeight: 0
+  originalHeight: 0
+  enableAutoJump: 0
+  autoJumpIntervalMin: 0
+  autoJumpIntervalMax: 0
+  nextAutoJumpTime: 0
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
