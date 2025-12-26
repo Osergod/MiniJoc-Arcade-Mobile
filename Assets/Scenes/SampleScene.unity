@@ -1253,7 +1253,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   jumpForce: 10
-  moveSpeed: 5
+  moveSpeed: 15
   laneSwitchSpeed: 10
   swipeThreshold: 50
   groundCheck: {fileID: 1856783063605152496, guid: a3d0687e243d9494eb3618ff28fa80be, type: 3}
