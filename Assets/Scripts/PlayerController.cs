@@ -26,6 +26,12 @@ public class PlayerController : MonoBehaviour
     public float gravity = -30f;
     public float groundCheckRadius = 0.3f;
     
+    [Header("Slide Settings")]
+    public float slideDuration = 1f;
+    public float slideHeight = 0.5f;
+    private float originalHeight;
+    private CapsuleCollider playerCollider;
+    
     [Header("Input Settings")]
     public float swipeThreshold = 50f;
     
@@ -57,6 +63,12 @@ public class PlayerController : MonoBehaviour
     {
         rb = GetComponent<Rigidbody>();
         animator = GetComponent<Animator>();
+        playerCollider = GetComponent<CapsuleCollider>();
+        
+        if (playerCollider != null)
+        {
+            originalHeight = playerCollider.height;
+        }
         
         InitializeRigidbody();
         CalculateTargetX();
@@ -72,11 +84,8 @@ public class PlayerController : MonoBehaviour
     {
         if (rb != null)
         {
-            // Congelar posición Y al inicio
             rb.constraints = RigidbodyConstraints.FreezePositionY | 
                             RigidbodyConstraints.FreezeRotation;
-            
-            // Desactivar gravedad del Rigidbody (la controlamos nosotros)
             rb.useGravity = false;
         }
     }
@@ -89,7 +98,7 @@ public class PlayerController : MonoBehaviour
         // Ejecutar lógica del estado actual
         ExecuteState();
         
-        // Manejar input (MÓVIL + TECLADO)
+        // Manejar input
         HandleMobileInput();
         HandleKeyboardInput();
         
@@ -117,11 +126,9 @@ public class PlayerController : MonoBehaviour
     
     void UpdateState()
     {
-        // Verificar contacto con el suelo
         bool wasGrounded = isGrounded;
         isGrounded = CheckGround();
         
-        // Transiciones de estado
         switch (currentState)
         {
             case PlayerState.Grounded:
@@ -153,7 +160,6 @@ public class PlayerController : MonoBehaviour
                 break;
         }
         
-        // Detectar aterrizaje
         if (!wasGrounded && isGrounded && currentState != PlayerState.Grounded)
         {
             OnLand();
@@ -165,25 +171,21 @@ public class PlayerController : MonoBehaviour
         switch (currentState)
         {
             case PlayerState.Grounded:
-                // Y congelado, aplicar gravedad cero
                 verticalVelocity = 0f;
                 FreezeYPosition();
                 break;
                 
             case PlayerState.Jumping:
-                // Y libre, aplicar gravedad
                 UnfreezeYPosition();
                 ApplyGravity();
                 break;
                 
             case PlayerState.Falling:
-                // Y libre, aplicar gravedad
                 UnfreezeYPosition();
                 ApplyGravity();
                 break;
                 
             case PlayerState.Sliding:
-                // Y congelado durante el deslizamiento
                 FreezeYPosition();
                 break;
         }
@@ -191,13 +193,8 @@ public class PlayerController : MonoBehaviour
     
     void TransitionToState(PlayerState newState)
     {
-        // Salir del estado anterior
         ExitState(currentState);
-        
-        // Entrar al nuevo estado
         EnterState(newState);
-        
-        // Cambiar estado
         currentState = newState;
     }
     
@@ -218,16 +215,29 @@ public class PlayerController : MonoBehaviour
                 
             case PlayerState.Sliding:
                 if (animator != null) animator.SetTrigger("Slide");
+                if (playerCollider != null)
+                {
+                    playerCollider.height = slideHeight;
+                }
+                Invoke("EndSlide", slideDuration);
                 break;
         }
     }
     
     void ExitState(PlayerState state)
     {
-        // Limpiar estados si es necesario
+        switch (state)
+        {
+            case PlayerState.Sliding:
+                if (playerCollider != null)
+                {
+                    playerCollider.height = originalHeight;
+                }
+                break;
+        }
     }
     
-    // ========== MOVIMIENTO HORIZONTAL ==========
+    // ========== MOVIMIENTO ==========
     
     void MoveForward()
     {
@@ -238,7 +248,6 @@ public class PlayerController : MonoBehaviour
     {
         Vector3 currentPos = transform.position;
         Vector3 targetPos = new Vector3(targetX, currentPos.y, currentPos.z);
-        
         transform.position = Vector3.Lerp(currentPos, targetPos, laneSwitchSpeed * Time.deltaTime);
     }
     
@@ -253,7 +262,7 @@ public class PlayerController : MonoBehaviour
     
     public void MoveRight()
     {
-        if (currentLane < 2) // 0, 1, 2 = 3 carriles
+        if (currentLane < 2)
         {
             currentLane++;
             CalculateTargetX();
@@ -262,10 +271,10 @@ public class PlayerController : MonoBehaviour
     
     void CalculateTargetX()
     {
-        targetX = (currentLane - 1) * laneWidth; // Para 3 carriles: -2.5, 0, 2.5
+        targetX = (currentLane - 1) * laneWidth;
     }
     
-    // ========== MOVIMIENTO VERTICAL ==========
+    // ========== SALTO ==========
     
     void ApplyGravity()
     {
@@ -288,8 +297,6 @@ public class PlayerController : MonoBehaviour
         {
             rb.constraints = RigidbodyConstraints.FreezePositionY | 
                             RigidbodyConstraints.FreezeRotation;
-            
-            // Mantener posición exacta en Y
             Vector3 pos = transform.position;
             pos.y = Mathf.Round(pos.y * 100f) / 100f;
             transform.position = pos;
@@ -304,13 +311,12 @@ public class PlayerController : MonoBehaviour
         }
     }
     
-    // ========== INPUT MÓVIL ==========
+    // ========== INPUT ==========
     
     void HandleMobileInput()
     {
         if (Touchscreen.current == null) return;
         
-        // INICIO DE TOQUE
         if (Touchscreen.current.primaryTouch.press.wasPressedThisFrame)
         {
             touchStartPos = Touchscreen.current.primaryTouch.position.ReadValue();
@@ -318,13 +324,11 @@ public class PlayerController : MonoBehaviour
             swipeProcessed = false;
         }
         
-        // TOQUE MANTENIDO
         if (isTouching && Touchscreen.current.primaryTouch.press.isPressed)
         {
             Vector2 currentPos = Touchscreen.current.primaryTouch.position.ReadValue();
             float deltaX = currentPos.x - touchStartPos.x;
             
-            // SWIPE HORIZONTAL SIN SOLTAR
             if (!swipeProcessed && Mathf.Abs(deltaX) > swipeThreshold)
             {
                 if (deltaX > 0) MoveRight();
@@ -335,18 +339,15 @@ public class PlayerController : MonoBehaviour
             }
         }
         
-        // FIN DE TOQUE
         if (isTouching && Touchscreen.current.primaryTouch.press.wasReleasedThisFrame)
         {
             Vector2 endPos = Touchscreen.current.primaryTouch.position.ReadValue();
             Vector2 delta = endPos - touchStartPos;
             
-            // TAP (salto) si no hubo swipe
             if (!swipeProcessed && delta.magnitude < swipeThreshold)
             {
                 Jump();
             }
-            // SWIPE VERTICAL
             else if (!swipeProcessed && Mathf.Abs(delta.y) > swipeThreshold)
             {
                 if (delta.y > 0) Jump();
@@ -358,11 +359,8 @@ public class PlayerController : MonoBehaviour
         }
     }
     
-    // ========== INPUT TECLADO ==========
-    
     void HandleKeyboardInput()
     {
-        // MOVIMIENTO LATERAL CON FLECHAS
         if (Keyboard.current.leftArrowKey.wasPressedThisFrame)
         {
             MoveLeft();
@@ -373,27 +371,32 @@ public class PlayerController : MonoBehaviour
             MoveRight();
         }
         
-        // SALTO CON ESPACIO
         if (Keyboard.current.spaceKey.wasPressedThisFrame)
         {
             Jump();
         }
         
-        // DESLIZAMIENTO CON FLECHA ABAJO
         if (Keyboard.current.downArrowKey.wasPressedThisFrame)
         {
             Slide();
         }
     }
     
-    // ========== SALTO ==========
+    // ========== ACCIONES ==========
     
     void Jump()
     {
-        // Solo puede saltar desde el suelo
         if (currentState == PlayerState.Grounded)
         {
             TransitionToState(PlayerState.Jumping);
+        }
+    }
+    
+    void Slide()
+    {
+        if (currentState == PlayerState.Grounded)
+        {
+            TransitionToState(PlayerState.Sliding);
         }
     }
     
@@ -405,8 +408,6 @@ public class PlayerController : MonoBehaviour
             {
                 Jump();
             }
-            
-            // Programar próximo salto automático
             nextAutoJumpTime = Time.time + Random.Range(autoJumpIntervalMin, autoJumpIntervalMax);
         }
     }
@@ -416,18 +417,6 @@ public class PlayerController : MonoBehaviour
         if (currentState == PlayerState.Jumping || currentState == PlayerState.Falling)
         {
             TransitionToState(PlayerState.Grounded);
-        }
-    }
-    
-    // ========== DESLIZAMIENTO ==========
-    
-    void Slide()
-    {
-        if (currentState == PlayerState.Grounded)
-        {
-            TransitionToState(PlayerState.Sliding);
-            // El slide dura 1 segundo
-            Invoke("EndSlide", 1f);
         }
     }
     
@@ -441,8 +430,78 @@ public class PlayerController : MonoBehaviour
     
     bool IsSliding()
     {
-        // El slide está activo mientras no se haya llamado EndSlide
         return currentState == PlayerState.Sliding;
+    }
+    
+    // ========== COLISIONES CON OBSTÁCULOS ==========
+    
+    void OnCollisionEnter(Collision collision)
+    {
+        if (collision.gameObject.CompareTag("Obstacle"))
+        {
+            HandleObstacleCollision(collision.gameObject);
+        }
+        
+        if (collision.gameObject.CompareTag("Ground"))
+        {
+            isGrounded = true;
+            if (currentState == PlayerState.Falling)
+            {
+                TransitionToState(PlayerState.Grounded);
+            }
+        }
+    }
+    
+    void HandleObstacleCollision(GameObject obstacle)
+    {
+        ObstacleType obstacleScript = obstacle.GetComponent<ObstacleType>();
+        
+        if (obstacleScript != null)
+        {
+            switch (obstacleScript.obstacleType)
+            {
+                case ObstacleType.Type.Wide:
+                    // Ancho: necesita saltar
+                    if (currentState != PlayerState.Jumping)
+                    {
+                        GameOver();
+                    }
+                    break;
+                    
+                case ObstacleType.Type.Long:
+                    // Largo: colisión normal
+                    GameOver();
+                    break;
+                    
+                case ObstacleType.Type.High:
+                    // Alto: necesita deslizarse
+                    if (currentState != PlayerState.Sliding)
+                    {
+                        GameOver();
+                    }
+                    break;
+            }
+        }
+        else
+        {
+            // Obstáculo sin tipo
+            GameOver();
+        }
+    }
+    
+    void OnTriggerEnter(Collider other)
+    {
+        if (other.CompareTag("Coin"))
+        {
+            CollectCoin(other.gameObject);
+        }
+    }
+    
+    void CollectCoin(GameObject coin)
+    {
+        coin.SetActive(false);
+        // ScoreManager.Instance.AddScore(10);
+        // AudioManager.Instance.PlaySound("CoinCollect");
     }
     
     // ========== UTILIDADES ==========
@@ -465,11 +524,18 @@ public class PlayerController : MonoBehaviour
         }
     }
     
+    void GameOver()
+    {
+        // Tu lógica de Game Over
+        Debug.Log("Game Over!");
+        moveSpeed = 0f;
+        // GameManager.Instance.EndGame();
+    }
+    
     // ========== DEBUG ==========
     
     void OnDrawGizmosSelected()
     {
-        // Ground check
         if (groundCheck != null)
         {
             Gizmos.color = isGrounded ? Color.green : Color.red;

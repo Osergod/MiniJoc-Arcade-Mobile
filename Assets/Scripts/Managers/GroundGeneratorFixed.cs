@@ -11,6 +11,17 @@ public class GroundGeneratorFixed : MonoBehaviour
         [HideInInspector] public Queue<GameObject> available = new Queue<GameObject>();
     }
     
+    [System.Serializable]
+    public class ObstacleConfig
+    {
+        public GameObject prefab;
+        public ObstacleType.Type obstacleType;
+        [Range(0f, 1f)] public float spawnChance = 0.33f;
+        public int minPerSegment = 0;
+        public int maxPerSegment = 2;
+        public bool coinsBelow = false; // Para High obstacles: monedas ABAJO
+    }
+    
     [Header("References")]
     public Transform player;
     
@@ -20,30 +31,33 @@ public class GroundGeneratorFixed : MonoBehaviour
     public int segmentsAhead = 8;
     
     [Header("Objects")]
-    public GameObject obstaclePrefab;
     public GameObject coinPrefab;
+    
+    [Header("Multiple Obstacles")]
+    public ObstacleConfig[] obstacleConfigs;
     
     [Header("Lane System")]
     public float[] lanePositions = { -2.5f, 0f, 2.5f };
     public int lanesPerSegment = 4;
     
     [Header("Generation Rules")]
-    [Range(0f, 1f)] public float obstacleChance = 0.25f;
+    [Range(0f, 1f)] public float totalObstacleChance = 0.25f;
     [Range(0f, 1f)] public float coinChance = 0.4f;
-    public int maxObstaclesPerSegment = 3;
+    public int maxTotalObstaclesPerSegment = 3;
     public int maxCoinsPerSegment = 8;
     
     [Header("Height Settings")]
     public float groundCoinHeight = 1f;
-    public float obstacleCoinHeight = 2f; // Altura cuando está encima de obstáculo
+    public float obstacleCoinHeight = 2.5f;
+    public float belowObstacleCoinHeight = 0.3f; // Monedas ABAJO de High obstacles
     
     // Track de objetos por celda
     private Dictionary<Vector2Int, GameObject> cellObstacles = new Dictionary<Vector2Int, GameObject>();
     private Dictionary<Vector2Int, GameObject> cellCoins = new Dictionary<Vector2Int, GameObject>();
     
     // Pools
+    private Dictionary<ObstacleType.Type, ObjectPool> obstaclePools = new Dictionary<ObstacleType.Type, ObjectPool>();
     private ObjectPool groundPool = new ObjectPool();
-    private ObjectPool obstaclePool = new ObjectPool();
     private ObjectPool coinPool = new ObjectPool();
     
     // State
@@ -57,8 +71,17 @@ public class GroundGeneratorFixed : MonoBehaviour
             player = GameObject.FindGameObjectWithTag("Player").transform;
         
         InitializePool(groundPool, groundPrefab, 12);
-        InitializePool(obstaclePool, obstaclePrefab, 20);
         InitializePool(coinPool, coinPrefab, 40);
+        
+        foreach (var config in obstacleConfigs)
+        {
+            if (config.prefab != null)
+            {
+                ObjectPool pool = new ObjectPool();
+                InitializePool(pool, config.prefab, 10);
+                obstaclePools[config.obstacleType] = pool;
+            }
+        }
         
         for (int i = 0; i < segmentsAhead; i++)
         {
@@ -109,6 +132,15 @@ public class GroundGeneratorFixed : MonoBehaviour
         return pool.available.Dequeue();
     }
     
+    GameObject GetObstacleByType(ObstacleType.Type type)
+    {
+        if (obstaclePools.ContainsKey(type))
+        {
+            return GetFromPool(obstaclePools[type]);
+        }
+        return null;
+    }
+    
     void ReturnToPool(ObjectPool pool, GameObject obj)
     {
         if (obj == null) return;
@@ -136,40 +168,272 @@ public class GroundGeneratorFixed : MonoBehaviour
     void PlaceObjectsInSegment(Transform segment, int segmentIndex)
     {
         float segmentStartZ = nextZ - groundLength;
-        float segmentEndZ = nextZ;
         float laneLength = groundLength / lanesPerSegment;
         
-        // PRIMERO: Colocar obstáculos
-        PlaceObstaclesInSegment(segment, segmentIndex, segmentStartZ, laneLength);
-        
-        // LUEGO: Colocar monedas (pueden estar encima de obstáculos)
+        PlaceMultipleObstaclesInSegment(segment, segmentIndex, segmentStartZ, laneLength);
         PlaceCoinsInSegment(segment, segmentIndex, segmentStartZ, laneLength);
     }
     
-    void PlaceObstaclesInSegment(Transform segment, int segmentIndex, float segmentStartZ, float laneLength)
+    void PlaceMultipleObstaclesInSegment(Transform segment, int segmentIndex, float segmentStartZ, float laneLength)
     {
-        if (obstaclePrefab == null) return;
+        if (obstacleConfigs.Length == 0) return;
         
-        int obstaclesPlaced = 0;
         List<Vector2Int> availableCells = GetAllSegmentCells(segmentIndex);
-        
-        // Mezclar celdas disponibles
         ShuffleList(availableCells);
+        
+        int totalObstaclesPlaced = 0;
+        Dictionary<ObstacleType.Type, int> obstaclesPlacedByType = new Dictionary<ObstacleType.Type, int>();
+        
+        foreach (var config in obstacleConfigs)
+        {
+            obstaclesPlacedByType[config.obstacleType] = 0;
+        }
         
         foreach (Vector2Int cell in availableCells)
         {
-            if (obstaclesPlaced >= maxObstaclesPerSegment) break;
+            if (totalObstaclesPlaced >= maxTotalObstaclesPerSegment) break;
             
-            // Aplicar probabilidad de obstáculo
-            if (Random.value <= obstacleChance)
+            if (Random.value <= totalObstacleChance)
             {
-                // Crear obstáculo en esta celda
-                if (CreateObstacleAtCell(segment, cell, segmentStartZ, laneLength))
+                ObstacleType.Type selectedType = SelectObstacleType();
+                var config = GetConfigByType(selectedType);
+                
+                if (config != null && obstaclesPlacedByType[selectedType] >= config.maxPerSegment)
                 {
-                    obstaclesPlaced++;
+                    continue;
+                }
+                
+                bool canPlace = true;
+                
+                if (selectedType == ObstacleType.Type.Long)
+                {
+                    canPlace = CanPlaceLongObstacle(cell, segmentIndex);
+                }
+                else if (selectedType == ObstacleType.Type.Wide)
+                {
+                    canPlace = CanPlaceWideObstacle(cell);
+                }
+                else if (selectedType == ObstacleType.Type.High)
+                {
+                    canPlace = CanPlaceHighObstacle(cell, segmentIndex);
+                }
+                
+                if (canPlace && CreateObstacleAtCell(segment, cell, segmentStartZ, laneLength, selectedType))
+                {
+                    totalObstaclesPlaced++;
+                    obstaclesPlacedByType[selectedType]++;
+                    
+                    if (selectedType == ObstacleType.Type.Long)
+                    {
+                        MarkLongObstacleCells(cell, segmentIndex);
+                    }
+                    else if (selectedType == ObstacleType.Type.Wide)
+                    {
+                        MarkWideObstacleCells(cell);
+                    }
+                    else if (selectedType == ObstacleType.Type.High)
+                    {
+                        MarkHighObstacleCells(cell);
+                    }
                 }
             }
         }
+    }
+    
+    ObstacleType.Type SelectObstacleType()
+    {
+        float totalWeight = 0f;
+        foreach (var config in obstacleConfigs)
+        {
+            totalWeight += config.spawnChance;
+        }
+        
+        float randomPoint = Random.value * totalWeight;
+        float currentWeight = 0f;
+        
+        foreach (var config in obstacleConfigs)
+        {
+            currentWeight += config.spawnChance;
+            if (randomPoint <= currentWeight)
+            {
+                return config.obstacleType;
+            }
+        }
+        
+        return obstacleConfigs[0].obstacleType;
+    }
+    
+    ObstacleConfig GetConfigByType(ObstacleType.Type type)
+    {
+        foreach (var config in obstacleConfigs)
+        {
+            if (config.obstacleType == type)
+            {
+                return config;
+            }
+        }
+        return null;
+    }
+    
+    bool CanPlaceLongObstacle(Vector2Int startCell, int segmentIndex)
+    {
+        int startZIndex = startCell.y % lanesPerSegment;
+        
+        if (startZIndex > lanesPerSegment - 3)
+        {
+            return false;
+        }
+        
+        for (int zOffset = 0; zOffset < 3; zOffset++)
+        {
+            Vector2Int checkCell = new Vector2Int(
+                startCell.x,
+                segmentIndex * lanesPerSegment + (startZIndex + zOffset)
+            );
+            
+            if (cellObstacles.ContainsKey(checkCell) && cellObstacles[checkCell] != null)
+            {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    bool CanPlaceWideObstacle(Vector2Int startCell)
+    {
+        int laneIndex = startCell.x;
+        
+        if (laneIndex > lanePositions.Length - 3)
+        {
+            return false;
+        }
+        
+        for (int xOffset = 0; xOffset < 3; xOffset++)
+        {
+            Vector2Int checkCell = new Vector2Int(
+                laneIndex + xOffset,
+                startCell.y
+            );
+            
+            if (cellObstacles.ContainsKey(checkCell) && cellObstacles[checkCell] != null)
+            {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    bool CanPlaceHighObstacle(Vector2Int cell, int segmentIndex)
+    {
+        // High obstacle ocupa 3x3 celdas
+        int laneIndex = cell.x;
+        int startZIndex = cell.y % lanesPerSegment;
+        
+        if (laneIndex > lanePositions.Length - 3 || startZIndex > lanesPerSegment - 3)
+        {
+            return false;
+        }
+        
+        for (int xOffset = 0; xOffset < 3; xOffset++)
+        {
+            for (int zOffset = 0; zOffset < 3; zOffset++)
+            {
+                Vector2Int checkCell = new Vector2Int(
+                    laneIndex + xOffset,
+                    segmentIndex * lanesPerSegment + (startZIndex + zOffset)
+                );
+                
+                if (cellObstacles.ContainsKey(checkCell) && cellObstacles[checkCell] != null)
+                {
+                    return false;
+                }
+            }
+        }
+        
+        return true;
+    }
+    
+    void MarkLongObstacleCells(Vector2Int startCell, int segmentIndex)
+    {
+        int startZIndex = startCell.y % lanesPerSegment;
+        
+        for (int zOffset = 1; zOffset < 3; zOffset++)
+        {
+            Vector2Int cell = new Vector2Int(
+                startCell.x,
+                segmentIndex * lanesPerSegment + (startZIndex + zOffset)
+            );
+            
+            cellObstacles[cell] = null;
+        }
+    }
+    
+    void MarkWideObstacleCells(Vector2Int startCell)
+    {
+        for (int xOffset = 1; xOffset < 3; xOffset++)
+        {
+            Vector2Int cell = new Vector2Int(
+                startCell.x + xOffset,
+                startCell.y
+            );
+            
+            cellObstacles[cell] = null;
+        }
+    }
+    
+    void MarkHighObstacleCells(Vector2Int startCell)
+    {
+        // Marcar todas las 9 celdas del obstáculo alto
+        for (int xOffset = 1; xOffset < 3; xOffset++)
+        {
+            for (int zOffset = 0; zOffset < 3; zOffset++)
+            {
+                Vector2Int cell = new Vector2Int(
+                    startCell.x + xOffset,
+                    startCell.y + zOffset
+                );
+                
+                if (xOffset != 0 || zOffset != 0) // No marcar la celda central otra vez
+                {
+                    cellObstacles[cell] = null;
+                }
+            }
+        }
+    }
+    
+    bool CreateObstacleAtCell(Transform segment, Vector2Int cell, float segmentStartZ, float laneLength, ObstacleType.Type type)
+    {
+        if (cellObstacles.ContainsKey(cell) && cellObstacles[cell] != null)
+        {
+            return false;
+        }
+        
+        Vector3 worldPos = CellToWorldPosition(cell, segmentStartZ, laneLength, 0.5f);
+        
+        // Ajustar posición para High obstacle (más alto)
+        if (type == ObstacleType.Type.High)
+        {
+            worldPos.y = 2.0f; // Más alto para pasar por debajo
+        }
+        
+        GameObject obstacle = GetObstacleByType(type);
+        if (obstacle == null) return false;
+        
+        ObstacleType obstacleScript = obstacle.GetComponent<ObstacleType>();
+        if (obstacleScript != null)
+        {
+            obstacleScript.obstacleType = type;
+        }
+        
+        obstacle.transform.position = worldPos;
+        obstacle.transform.parent = segment;
+        obstacle.SetActive(true);
+        
+        cellObstacles[cell] = obstacle;
+        
+        return true;
     }
     
     void PlaceCoinsInSegment(Transform segment, int segmentIndex, float segmentStartZ, float laneLength)
@@ -178,18 +442,14 @@ public class GroundGeneratorFixed : MonoBehaviour
         
         int coinsPlaced = 0;
         List<Vector2Int> allCells = GetAllSegmentCells(segmentIndex);
-        
-        // Mezclar celdas
         ShuffleList(allCells);
         
         foreach (Vector2Int cell in allCells)
         {
             if (coinsPlaced >= maxCoinsPerSegment) break;
             
-            // Aplicar probabilidad de moneda
             if (Random.value <= coinChance)
             {
-                // Crear moneda en esta celda (puede estar encima de obstáculo)
                 if (CreateCoinAtCell(segment, cell, segmentStartZ, laneLength))
                 {
                     coinsPlaced++;
@@ -198,52 +458,47 @@ public class GroundGeneratorFixed : MonoBehaviour
         }
     }
     
-    bool CreateObstacleAtCell(Transform segment, Vector2Int cell, float segmentStartZ, float laneLength)
-    {
-        // Verificar que no haya ya un obstáculo en esta celda
-        if (cellObstacles.ContainsKey(cell))
-        {
-            return false;
-        }
-        
-        // Calcular posición mundial
-        Vector3 worldPos = CellToWorldPosition(cell, segmentStartZ, laneLength, 0.5f);
-        
-        // Crear obstáculo
-        GameObject obstacle = GetFromPool(obstaclePool);
-        if (obstacle == null) return false;
-        
-        obstacle.transform.position = worldPos;
-        obstacle.transform.parent = segment;
-        obstacle.SetActive(true);
-        
-        // Registrar obstáculo en esta celda
-        cellObstacles[cell] = obstacle;
-        
-        return true;
-    }
-    
     bool CreateCoinAtCell(Transform segment, Vector2Int cell, float segmentStartZ, float laneLength)
     {
-        // Verificar si ya hay una moneda en esta celda
         if (cellCoins.ContainsKey(cell))
         {
             return false;
         }
         
-        // Calcular altura: si hay obstáculo, moneda más alta
+        // Verificar si hay obstáculo en esta celda
+        bool hasObstacle = cellObstacles.ContainsKey(cell) && cellObstacles[cell] != null;
+        
         float height = groundCoinHeight;
-        bool hasObstacle = cellObstacles.ContainsKey(cell);
         
         if (hasObstacle)
         {
-            height = obstacleCoinHeight;
+            GameObject obstacle = cellObstacles[cell];
+            ObstacleType obstacleScript = obstacle.GetComponent<ObstacleType>();
+            
+            if (obstacleScript != null)
+            {
+                var config = GetConfigByType(obstacleScript.obstacleType);
+                
+                if (config != null && config.coinsBelow && obstacleScript.obstacleType == ObstacleType.Type.High)
+                {
+                    // Para High obstacles: moneda ABAJO (a ras de suelo)
+                    height = belowObstacleCoinHeight;
+                }
+                else
+                {
+                    // Para otros obstáculos: moneda ENCIMA
+                    height = obstacleCoinHeight;
+                }
+            }
+            else
+            {
+                // Obstáculo sin script: moneda encima por defecto
+                height = obstacleCoinHeight;
+            }
         }
         
-        // Calcular posición mundial
         Vector3 worldPos = CellToWorldPosition(cell, segmentStartZ, laneLength, height);
         
-        // Crear moneda
         GameObject coin = GetFromPool(coinPool);
         if (coin == null) return false;
         
@@ -251,7 +506,6 @@ public class GroundGeneratorFixed : MonoBehaviour
         coin.transform.parent = segment;
         coin.SetActive(true);
         
-        // Registrar moneda en esta celda
         cellCoins[cell] = coin;
         
         return true;
@@ -263,11 +517,9 @@ public class GroundGeneratorFixed : MonoBehaviour
         int laneZIndex = cell.y % lanesPerSegment;
         int segmentIndex = cell.y / lanesPerSegment;
         
-        // Calcular posición Z basada en el índice de segmento actual
         float segmentOffset = (currentSegmentIndex - 1 - segmentIndex) * groundLength;
         float zPos = nextZ - groundLength - segmentOffset + (laneZIndex * laneLength) + (laneLength / 2);
         
-        // Posición X según el carril
         float xPos = lanePositions[laneIndex];
         
         return new Vector3(xPos, yHeight, zPos);
@@ -301,119 +553,69 @@ public class GroundGeneratorFixed : MonoBehaviour
     
     void RecycleSegment(GameObject segment)
     {
-        // Buscar todas las celdas que pertenecen a este segmento
-        int segmentIndex = -1;
+        // Buscar y remover objetos de este segmento
+        List<Vector2Int> cellsToRemove = new List<Vector2Int>();
         
-        // Determinar el índice del segmento basado en su posición Z
-        for (int i = 0; i < currentSegmentIndex; i++)
+        foreach (var kvp in cellObstacles)
         {
-            float expectedZ = nextZ - groundLength * (currentSegmentIndex - i);
-            if (Mathf.Abs(segment.transform.position.z - expectedZ) < 0.1f)
+            if (kvp.Value != null && kvp.Value.transform.parent == segment)
             {
-                segmentIndex = i;
-                break;
+                ReturnObstacleToPool(kvp.Value);
+                cellsToRemove.Add(kvp.Key);
             }
         }
         
-        if (segmentIndex >= 0)
+        foreach (var cell in cellsToRemove)
         {
-            // Remover obstáculos y monedas de este segmento de los diccionarios
-            List<Vector2Int> cellsToRemove = new List<Vector2Int>();
-            
-            foreach (var kvp in cellObstacles)
+            cellObstacles.Remove(cell);
+        }
+        
+        cellsToRemove.Clear();
+        
+        foreach (var kvp in cellCoins)
+        {
+            if (kvp.Value != null && kvp.Value.transform.parent == segment)
             {
-                if (kvp.Key.y / lanesPerSegment == segmentIndex)
-                {
-                    cellsToRemove.Add(kvp.Key);
-                }
-            }
-            
-            foreach (var cell in cellsToRemove)
-            {
-                if (cellObstacles.ContainsKey(cell))
-                {
-                    GameObject obstacle = cellObstacles[cell];
-                    ReturnToPool(obstaclePool, obstacle);
-                    cellObstacles.Remove(cell);
-                }
-                
-                if (cellCoins.ContainsKey(cell))
-                {
-                    GameObject coin = cellCoins[cell];
-                    ReturnToPool(coinPool, coin);
-                    cellCoins.Remove(cell);
-                }
+                ReturnToPool(coinPool, kvp.Value);
+                cellsToRemove.Add(kvp.Key);
             }
         }
         
-        // Limpiar cualquier hijo restante
-        foreach (Transform child in segment.transform)
+        foreach (var cell in cellsToRemove)
         {
-            if (child.CompareTag("Obstacle"))
-                ReturnToPool(obstaclePool, child.gameObject);
-            else if (child.CompareTag("Coin"))
-                ReturnToPool(coinPool, child.gameObject);
-            else
-                Destroy(child.gameObject);
+            cellCoins.Remove(cell);
         }
         
-        // Devolver segmento al pool
+        // Limpiar null markers
+        cellsToRemove.Clear();
+        foreach (var kvp in cellObstacles)
+        {
+            if (kvp.Value == null)
+            {
+                cellsToRemove.Add(kvp.Key);
+            }
+        }
+        
+        foreach (var cell in cellsToRemove)
+        {
+            cellObstacles.Remove(cell);
+        }
+        
         ReturnToPool(groundPool, segment);
     }
     
-    void OnDrawGizmosSelected()
+    void ReturnObstacleToPool(GameObject obstacle)
     {
-        if (!Application.isPlaying) return;
+        if (obstacle == null) return;
         
-        // Dibujar carriles
-        Gizmos.color = Color.blue;
-        for (int i = 0; i < lanePositions.Length; i++)
+        ObstacleType obstacleScript = obstacle.GetComponent<ObstacleType>();
+        if (obstacleScript != null && obstaclePools.ContainsKey(obstacleScript.obstacleType))
         {
-            float xPos = lanePositions[i];
-            Gizmos.DrawLine(
-                new Vector3(xPos, 0, player.position.z - 20),
-                new Vector3(xPos, 0, player.position.z + 20)
-            );
+            ReturnToPool(obstaclePools[obstacleScript.obstacleType], obstacle);
         }
-        
-        // Dibujar celdas con contenido
-        foreach (var kvp in cellObstacles)
+        else
         {
-            Vector2Int cell = kvp.Key;
-            GameObject obstacle = kvp.Value;
-            
-            if (obstacle != null)
-            {
-                // Celda con obstáculo: rojo
-                Gizmos.color = Color.red;
-                Gizmos.DrawWireCube(
-                    obstacle.transform.position,
-                    new Vector3(0.8f, 1f, 0.8f)
-                );
-                
-                // Verificar si también tiene moneda encima
-                if (cellCoins.ContainsKey(cell))
-                {
-                    Gizmos.color = Color.yellow;
-                    Vector3 coinPos = obstacle.transform.position + Vector3.up * (obstacleCoinHeight - 0.5f);
-                    Gizmos.DrawWireSphere(coinPos, 0.3f);
-                    Gizmos.DrawLine(obstacle.transform.position, coinPos);
-                }
-            }
-        }
-        
-        // Dibujar monedas solas (sin obstáculo debajo)
-        Gizmos.color = Color.green;
-        foreach (var kvp in cellCoins)
-        {
-            Vector2Int cell = kvp.Key;
-            GameObject coin = kvp.Value;
-            
-            // Solo dibujar si NO tiene obstáculo debajo
-            if (!cellObstacles.ContainsKey(cell) && coin != null)
-            {
-                Gizmos.DrawWireSphere(coin.transform.position, 0.3f);
-            }
+            Destroy(obstacle);
         }
     }
 }

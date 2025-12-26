@@ -813,16 +813,38 @@ MonoBehaviour:
   groundPrefab: {fileID: 1280136859607710307, guid: a3d0687e243d9494eb3618ff28fa80be, type: 3}
   groundLength: 10
   segmentsAhead: 8
-  obstaclePrefab: {fileID: 481256038365708867, guid: 008a69ed004c0cf41996f73e7519c8d8, type: 3}
   coinPrefab: {fileID: 7409374402127319443, guid: de2313dd64f462648b702fee2aa875bc, type: 3}
-  minObstacleDistance: 5
-  minCoinDistance: 2
+  obstacleConfigs:
+  - prefab: {fileID: 481256038365708867, guid: a0ee7d7a91221a6448e2444a085a5176, type: 3}
+    obstacleType: 0
+    spawnChance: 0.4
+    minPerSegment: 0
+    maxPerSegment: 1
+    coinsBelow: 0
+  - prefab: {fileID: 481256038365708867, guid: 715fcd33003887b4c9170e4f6b9b1e14, type: 3}
+    obstacleType: 1
+    spawnChance: 0.3
+    minPerSegment: 0
+    maxPerSegment: 1
+    coinsBelow: 0
+  - prefab: {fileID: 481256038365708867, guid: e50801168c00887428ccbe5750ddee41, type: 3}
+    obstacleType: 2
+    spawnChance: 0.3
+    minPerSegment: 0
+    maxPerSegment: 1
+    coinsBelow: 1
   lanePositions:
   - -2.5
   - 0
   - 2.5
-  maxObstaclesPerSegment: 1
+  lanesPerSegment: 4
+  totalObstacleChance: 0.25
+  coinChance: 0.4
+  maxTotalObstaclesPerSegment: 1
   maxCoinsPerSegment: 1
+  groundCoinHeight: 1
+  obstacleCoinHeight: 2
+  belowObstacleCoinHeight: 0.3
 --- !u!114 &821306653
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1294,6 +1316,8 @@ MonoBehaviour:
   jumpForce: 10
   gravity: -30
   groundCheckRadius: 0.3
+  slideDuration: 1
+  slideHeight: 0.5
   swipeThreshold: 50
   enableAutoJump: 0
   autoJumpIntervalMin: 3
