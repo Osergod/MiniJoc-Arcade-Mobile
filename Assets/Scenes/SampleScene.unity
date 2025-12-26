@@ -774,6 +774,7 @@ GameObject:
   m_Component:
   - component: {fileID: 821306651}
   - component: {fileID: 821306652}
+  - component: {fileID: 821306653}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -822,6 +823,21 @@ MonoBehaviour:
   - 2.5
   maxObstaclesPerSegment: 1
   maxCoinsPerSegment: 1
+--- !u!114 &821306653
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 821306650}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1d8fa21c7233f2a4eb5cef143f11f6e9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  groundGenerator: {fileID: 0}
+  gridCellSize: 2
+  gridSafetyMargin: 1
 --- !u!1 &941798368
 GameObject:
   m_ObjectHideFlags: 0
