@@ -3,6 +3,15 @@ using UnityEngine.InputSystem;
 
 public class PlayerController : MonoBehaviour
 {
+    // ========== ENUM DE ESTADOS ==========
+    public enum PlayerState
+    {
+        Grounded,
+        Jumping,
+        Falling,
+        Sliding
+    }
+    
     // ========== REFERENCIAS ==========
     [Header("References")]
     public Transform groundCheck;
@@ -17,11 +26,12 @@ public class PlayerController : MonoBehaviour
     [Header("Jump Settings")]
     public float jumpForce = 12f;
     public float gravity = -30f;
-    public float groundCheckRadius = 0.5f; // Aumentado para mejor detección
+    public float groundCheckRadius = 0.5f; // Aumentado
     
     [Header("Slide Settings")]
     public float slideDuration = 1f;
     public float slideHeight = 0.5f;
+    public float originalHeight;
     
     [Header("Input Settings")]
     public float swipeThreshold = 50f;
@@ -30,6 +40,7 @@ public class PlayerController : MonoBehaviour
     public bool enableAutoJump = true;
     public float autoJumpIntervalMin = 3f;
     public float autoJumpIntervalMax = 8f;
+    public float nextAutoJumpTime = 0f;
     
     // ========== VARIABLES PÚBLICAS ==========
     [HideInInspector] public float verticalVelocity = 0f;
@@ -39,132 +50,181 @@ public class PlayerController : MonoBehaviour
     [HideInInspector] public Rigidbody rb;
     [HideInInspector] public Animator animator;
     [HideInInspector] public CapsuleCollider playerCollider;
-    [HideInInspector] public float originalHeight;
-    [HideInInspector] public float nextAutoJumpTime = 0f;
     
-    // ========== COMPONENTES ==========
-    private PlayerStateMachine stateMachine;
+    // ========== ESTADOS ==========
+    private PlayerState currentState = PlayerState.Grounded;
+    private GroundedState groundedState = new GroundedState();
+    private JumpingState jumpingState = new JumpingState();
+    private FallingState fallingState = new FallingState();
+    private SlidingState slidingState = new SlidingState();
+    
+    // Input
     private Vector2 touchStartPos;
     private bool isTouching = false;
     private bool swipeProcessed = false;
     
-    // ========== INICIALIZACIÓN ==========
     void Start()
     {
-        // Obtener componentes
         rb = GetComponent<Rigidbody>();
         animator = GetComponent<Animator>();
         playerCollider = GetComponent<CapsuleCollider>();
-        stateMachine = GetComponent<PlayerStateMachine>();
         
-        // IMPORTANTE: Configurar Rigidbody ANTES que nada
-        SetupRigidbody();
-        
-        // Inicializar collider
         if (playerCollider != null)
         {
             originalHeight = playerCollider.height;
-            
-            // Asegurar que el collider esté configurado
-            playerCollider.center = new Vector3(0, 1f, 0); // Ajusta según tu modelo
-            playerCollider.radius = 0.5f; // Radio adecuado
-            playerCollider.height = 2f; // Altura adecuada
-            
-            Debug.Log("CapsuleCollider configurado: height=" + playerCollider.height);
         }
         
-        // Calcular posición inicial
-        CalculateLanePosition();
+        InitializeRigidbody();
+        CalculateTargetX();
         
-        // Programar primer salto automático
         if (enableAutoJump)
         {
             nextAutoJumpTime = Time.time + Random.Range(autoJumpIntervalMin, autoJumpIntervalMax);
         }
         
-        Debug.Log("PlayerController inicializado correctamente");
+        // Iniciar en estado Grounded
+        ChangeState(PlayerState.Grounded);
     }
     
-    void SetupRigidbody()
+    void InitializeRigidbody()
     {
         if (rb != null)
         {
-            // CONFIGURACIONES CRÍTICAS:
-            rb.constraints = RigidbodyConstraints.FreezePositionY | 
-                            RigidbodyConstraints.FreezeRotation;
+            rb.constraints = RigidbodyConstraints.FreezePositionY | RigidbodyConstraints.FreezeRotation;
             rb.useGravity = false;
-            
-            // AGREGAR ESTAS CONFIGURACIONES:
-            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-            rb.interpolation = RigidbodyInterpolation.Interpolate;
-            
-            // Configurar colisiones
-            rb.isKinematic = false;
-            rb.drag = 0f;
-            rb.angularDrag = 0.05f;
-            
-            Debug.Log("Rigidbody configurado correctamente");
         }
     }
     
-    // ========== UPDATE ==========
     void Update()
     {
-        // La máquina de estados maneja el Update en su propio script
+        // Ejecutar estado actual
+        ExecuteCurrentState();
         
         // Manejar input
-        ProcessMobileInput();
-        ProcessKeyboardInput();
+        HandleMobileInput();
+        HandleKeyboardInput();
         
         // Movimiento horizontal (siempre activo)
-        MovePlayerForward();
-        SmoothLaneTransition();
-        
-        // Verificar salto automático
-        CheckForAutoJump();
+        MoveForward();
+        SmoothLaneSwitch();
         
         // Actualizar animaciones
-        UpdateAnimationStates();
+        UpdateAnimations();
+    }
+    
+    void FixedUpdate()
+    {
+        // Aplicar movimiento vertical en FixedUpdate
+        if (currentState == PlayerState.Jumping || currentState == PlayerState.Falling)
+        {
+            ApplyVerticalMovement();
+        }
+    }
+    
+    // ========== MÁQUINA DE ESTADOS ==========
+    
+    void ExecuteCurrentState()
+    {
+        switch (currentState)
+        {
+            case PlayerState.Grounded:
+                groundedState.UpdateState(this);
+                break;
+            case PlayerState.Jumping:
+                jumpingState.UpdateState(this);
+                break;
+            case PlayerState.Falling:
+                fallingState.UpdateState(this);
+                break;
+            case PlayerState.Sliding:
+                slidingState.UpdateState(this);
+                break;
+        }
+    }
+    
+    public void ChangeState(PlayerState newState)
+    {
+        ExitCurrentState();
+        EnterNewState(newState);
+        currentState = newState;
+    }
+    
+    void ExitCurrentState()
+    {
+        switch (currentState)
+        {
+            case PlayerState.Grounded:
+                groundedState.ExitState(this);
+                break;
+            case PlayerState.Jumping:
+                jumpingState.ExitState(this);
+                break;
+            case PlayerState.Falling:
+                fallingState.ExitState(this);
+                break;
+            case PlayerState.Sliding:
+                slidingState.ExitState(this);
+                break;
+        }
+    }
+    
+    void EnterNewState(PlayerState state)
+    {
+        switch (state)
+        {
+            case PlayerState.Grounded:
+                groundedState.EnterState(this);
+                break;
+            case PlayerState.Jumping:
+                jumpingState.EnterState(this);
+                break;
+            case PlayerState.Falling:
+                fallingState.EnterState(this);
+                break;
+            case PlayerState.Sliding:
+                slidingState.EnterState(this);
+                break;
+        }
     }
     
     // ========== MOVIMIENTO ==========
     
-    public void MovePlayerForward()
+    public void MoveForward()
     {
         transform.Translate(Vector3.forward * moveSpeed * Time.deltaTime);
     }
     
-    public void SmoothLaneTransition()
+    public void SmoothLaneSwitch()
     {
         Vector3 currentPos = transform.position;
         Vector3 targetPos = new Vector3(targetX, currentPos.y, currentPos.z);
         transform.position = Vector3.Lerp(currentPos, targetPos, laneSwitchSpeed * Time.deltaTime);
     }
     
-    public void RequestMoveLeft()
+    public void MoveLeft()
     {
         if (currentLane > 0)
         {
             currentLane--;
-            CalculateLanePosition();
+            CalculateTargetX();
         }
     }
     
-    public void RequestMoveRight()
+    public void MoveRight()
     {
         if (currentLane < 2)
         {
             currentLane++;
-            CalculateLanePosition();
+            CalculateTargetX();
         }
     }
     
-    public void CalculateLanePosition()
+    void CalculateTargetX()
     {
         targetX = (currentLane - 1) * laneWidth;
     }
     
-    // ========== FÍSICA Y GRAVEDAD ==========
+    // ========== FÍSICA ==========
     
     public void ApplyGravityForce()
     {
@@ -174,16 +234,22 @@ public class PlayerController : MonoBehaviour
     
     public void ApplyVerticalVelocity()
     {
+        // Este método lo llaman los estados en FixedUpdate
         Vector3 movement = new Vector3(0, verticalVelocity * Time.fixedDeltaTime, 0);
         transform.Translate(movement, Space.World);
+    }
+    
+    void ApplyVerticalMovement()
+    {
+        // Para uso interno
+        ApplyVerticalVelocity();
     }
     
     public void LockYPosition()
     {
         if (rb != null)
         {
-            rb.constraints = RigidbodyConstraints.FreezePositionY | 
-                            RigidbodyConstraints.FreezeRotation;
+            rb.constraints = RigidbodyConstraints.FreezePositionY | RigidbodyConstraints.FreezeRotation;
             Vector3 pos = transform.position;
             pos.y = Mathf.Round(pos.y * 100f) / 100f;
             transform.position = pos;
@@ -200,7 +266,7 @@ public class PlayerController : MonoBehaviour
     
     // ========== INPUT ==========
     
-    void ProcessMobileInput()
+    void HandleMobileInput()
     {
         if (Touchscreen.current == null) return;
         
@@ -218,8 +284,8 @@ public class PlayerController : MonoBehaviour
             
             if (!swipeProcessed && Mathf.Abs(deltaX) > swipeThreshold)
             {
-                if (deltaX > 0) RequestMoveRight();
-                else RequestMoveLeft();
+                if (deltaX > 0) MoveRight();
+                else MoveLeft();
                 
                 swipeProcessed = true;
                 touchStartPos = currentPos;
@@ -233,12 +299,12 @@ public class PlayerController : MonoBehaviour
             
             if (!swipeProcessed && delta.magnitude < swipeThreshold)
             {
-                RequestJump();
+                Jump();
             }
             else if (!swipeProcessed && Mathf.Abs(delta.y) > swipeThreshold)
             {
-                if (delta.y > 0) RequestJump();
-                else RequestSlide();
+                if (delta.y > 0) Jump();
+                else Slide();
             }
             
             isTouching = false;
@@ -246,70 +312,57 @@ public class PlayerController : MonoBehaviour
         }
     }
     
-    void ProcessKeyboardInput()
+    void HandleKeyboardInput()
     {
         if (Keyboard.current.leftArrowKey.wasPressedThisFrame)
         {
-            RequestMoveLeft();
+            MoveLeft();
         }
         
         if (Keyboard.current.rightArrowKey.wasPressedThisFrame)
         {
-            RequestMoveRight();
+            MoveRight();
         }
         
         if (Keyboard.current.spaceKey.wasPressedThisFrame)
         {
-            RequestJump();
+            Jump();
         }
         
         if (Keyboard.current.downArrowKey.wasPressedThisFrame)
         {
-            RequestSlide();
+            Slide();
         }
     }
     
     // ========== ACCIONES ==========
     
-    void RequestJump()
+    public void Jump()
     {
-        if (stateMachine != null)
+        if (currentState == PlayerState.Grounded)
         {
-            stateMachine.RequestJumpAction();
+            ChangeState(PlayerState.Jumping);
         }
     }
     
-    void RequestSlide()
+    public void Slide()
     {
-        if (stateMachine != null)
+        if (currentState == PlayerState.Grounded)
         {
-            stateMachine.RequestSlideAction();
+            ChangeState(PlayerState.Sliding);
         }
     }
     
-    void CheckForAutoJump()
+    void CheckAutoJump()
     {
         if (enableAutoJump && Time.time >= nextAutoJumpTime)
         {
-            if (stateMachine != null && stateMachine.IsPlayerGrounded())
+            if (currentState == PlayerState.Grounded)
             {
-                RequestJump();
+                Jump();
             }
             nextAutoJumpTime = Time.time + Random.Range(autoJumpIntervalMin, autoJumpIntervalMax);
         }
-    }
-    
-    public void FinishSlide()
-    {
-        if (stateMachine != null && stateMachine.IsPlayerSliding())
-        {
-            stateMachine.RequestLanding();
-        }
-    }
-    
-    public bool CheckIfSliding()
-    {
-        return stateMachine != null && stateMachine.IsPlayerSliding();
     }
     
     // ========== COLISIONES ==========
@@ -318,84 +371,47 @@ public class PlayerController : MonoBehaviour
     {
         if (collision.gameObject.CompareTag("Obstacle"))
         {
-            ProcessObstacleCollision(collision.gameObject);
+            // Sin muerte
+            Debug.Log("Colisión con obstáculo (sin efecto)");
         }
         
         if (collision.gameObject.CompareTag("Ground"))
         {
             isGrounded = true;
-            if (stateMachine != null)
-            {
-                stateMachine.RequestLanding();
-            }
         }
-    }
-    
-    void ProcessObstacleCollision(GameObject obstacle)
-    {
-        // COMENTADO: Desactivar muerte por obstáculos
-        // Solo mostrar debug, sin game over
-        
-        Debug.Log("Colisión con obstáculo ignorada (modo sin muerte)");
-        
-        // Opcional: puedes agregar efectos visuales o sonido sin game over
-        // Ejemplo: obstacle.SetActive(false); // Hacer desaparecer el obstáculo
-        // Ejemplo: GetComponent<AudioSource>().PlayOneShot(hitSound);
     }
     
     void OnTriggerEnter(Collider other)
     {
         if (other.CompareTag("Coin"))
         {
-            CollectCoinItem(other.gameObject);
+            CollectCoin(other.gameObject);
         }
     }
     
-    void CollectCoinItem(GameObject coin)
+    void CollectCoin(GameObject coin)
     {
         coin.SetActive(false);
-        // ScoreManager.Instance.AddScore(10);
-        // AudioManager.Instance.PlaySound("CoinCollect");
     }
     
     // ========== UTILIDADES ==========
     
     public bool CheckGroundContact()
     {
-        if (groundCheck == null) 
-        {
-            Debug.LogWarning("groundCheck no asignado!");
-            return false;
-        }
-        
-        // Usar esfera más grande y debug
-        bool grounded = Physics.CheckSphere(groundCheck.position, groundCheckRadius, groundLayer);
-        
-        // DEBUG: Mostrar info
-        #if UNITY_EDITOR
-        Debug.DrawRay(groundCheck.position, Vector3.down * groundCheckRadius, 
-                     grounded ? Color.green : Color.red, 0.1f);
-        #endif
-        
-        return grounded;
+        if (groundCheck == null) return true;
+        return Physics.CheckSphere(groundCheck.position, groundCheckRadius, groundLayer);
     }
     
-    public void UpdateAnimationStates()
+    public void UpdateAnimations()
     {
-        if (animator != null && stateMachine != null)
+        if (animator != null)
         {
             animator.SetBool("IsGrounded", isGrounded);
-            animator.SetBool("IsJumping", stateMachine.IsPlayerJumping());
-            animator.SetBool("IsFalling", stateMachine.IsPlayerFalling());
-            animator.SetBool("IsSliding", stateMachine.IsPlayerSliding());
+            animator.SetBool("IsJumping", currentState == PlayerState.Jumping);
+            animator.SetBool("IsFalling", currentState == PlayerState.Falling);
+            animator.SetBool("IsSliding", currentState == PlayerState.Sliding);
             animator.SetFloat("VerticalVelocity", verticalVelocity);
         }
-    }
-    
-    void TriggerGameOver()
-    {
-        // COMENTADO: Desactivar game over
-        Debug.Log("Game Over desactivado - Continuando juego");
     }
     
     // ========== DEBUG ==========

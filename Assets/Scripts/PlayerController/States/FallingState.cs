@@ -3,9 +3,9 @@ using UnityEngine;
 [System.Serializable]
 public class FallingState : IPlayerState
 {
-    public void EnterState(PlayerStateMachine player)
+    public void EnterState(PlayerController player)
     {
-        player.UnfreezeYPosition();
+        player.UnlockYPosition();
         
         if (player.animator != null)
         {
@@ -14,19 +14,17 @@ public class FallingState : IPlayerState
         }
     }
     
-    public void UpdateState(PlayerStateMachine player)
+    public void UpdateState(PlayerController player)
     {
-        player.isGrounded = player.CheckGround();
-        player.ApplyGravity();
+        player.isGrounded = player.CheckGroundContact();
+        player.ApplyGravityForce();
         
-        // Verificar transición a Grounded
         if (player.isGrounded)
         {
-            player.ChangeState(player.groundedState);
+            player.ChangeState(PlayerController.PlayerState.Grounded);
             return;
         }
         
-        // Movimiento horizontal
         player.MoveForward();
         player.SmoothLaneSwitch();
         
@@ -36,12 +34,12 @@ public class FallingState : IPlayerState
         }
     }
     
-    public void FixedUpdateState(PlayerStateMachine player)
+    public void FixedUpdateState(PlayerController player)
     {
-        // El movimiento vertical se maneja en FixedUpdate del PlayerStateMachine
+        player.ApplyVerticalVelocity();
     }
     
-    public void ExitState(PlayerStateMachine player)
+    public void ExitState(PlayerController player)
     {
         if (player.animator != null)
         {

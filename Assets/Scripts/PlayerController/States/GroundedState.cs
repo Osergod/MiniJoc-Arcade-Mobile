@@ -3,10 +3,10 @@ using UnityEngine;
 [System.Serializable]
 public class GroundedState : IPlayerState
 {
-    public void EnterState(PlayerStateMachine player)
+    public void EnterState(PlayerController player)
     {
         player.verticalVelocity = 0f;
-        player.FreezeYPosition();
+        player.LockYPosition();
         
         if (player.animator != null)
         {
@@ -17,7 +17,6 @@ public class GroundedState : IPlayerState
             player.animator.SetBool("IsSliding", false);
         }
         
-        // Programar siguiente salto automático
         if (player.enableAutoJump)
         {
             player.nextAutoJumpTime = Time.time + Random.Range(
@@ -27,36 +26,33 @@ public class GroundedState : IPlayerState
         }
     }
     
-    public void UpdateState(PlayerStateMachine player)
+    public void UpdateState(PlayerController player)
     {
-        player.isGrounded = player.CheckGround();
+        player.isGrounded = player.CheckGroundContact();
         
-        // Verificar transición a Falling
         if (!player.isGrounded)
         {
-            player.ChangeState(player.fallingState);
+            player.ChangeState(PlayerController.PlayerState.Falling);
             return;
         }
         
-        // Movimiento horizontal
         player.MoveForward();
         player.SmoothLaneSwitch();
         
-        // Verificar salto automático
         CheckAutoJump(player);
     }
     
-    public void FixedUpdateState(PlayerStateMachine player)
+    public void FixedUpdateState(PlayerController player)
     {
         // Lógica física específica del estado grounded
     }
     
-    public void ExitState(PlayerStateMachine player)
+    public void ExitState(PlayerController player)
     {
         // Limpieza al salir del estado
     }
     
-    private void CheckAutoJump(PlayerStateMachine player)
+    private void CheckAutoJump(PlayerController player)
     {
         if (player.enableAutoJump && Time.time >= player.nextAutoJumpTime)
         {

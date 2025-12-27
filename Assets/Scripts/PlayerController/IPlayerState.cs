@@ -1,8 +1,7 @@
-// ========== INTERFAZ DE ESTADO ==========
 public interface IPlayerState
 {
-    void EnterState(PlayerStateMachine player);
-    void UpdateState(PlayerStateMachine player);
-    void FixedUpdateState(PlayerStateMachine player);
-    void ExitState(PlayerStateMachine player);
+    void EnterState(PlayerController player);
+    void UpdateState(PlayerController player);
+    void FixedUpdateState(PlayerController player);
+    void ExitState(PlayerController player);
 }

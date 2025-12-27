@@ -3,10 +3,10 @@ using UnityEngine;
 [System.Serializable]
 public class JumpingState : IPlayerState
 {
-    public void EnterState(PlayerStateMachine player)
+    public void EnterState(PlayerController player)
     {
         player.verticalVelocity = player.jumpForce;
-        player.UnfreezeYPosition();
+        player.UnlockYPosition();
         
         if (player.animator != null)
         {
@@ -16,18 +16,16 @@ public class JumpingState : IPlayerState
         }
     }
     
-    public void UpdateState(PlayerStateMachine player)
+    public void UpdateState(PlayerController player)
     {
-        player.ApplyGravity();
+        player.ApplyGravityForce();
         
-        // Verificar transición a Falling
         if (player.verticalVelocity < 0)
         {
-            player.ChangeState(player.fallingState);
+            player.ChangeState(PlayerController.PlayerState.Falling);
             return;
         }
         
-        // Movimiento horizontal
         player.MoveForward();
         player.SmoothLaneSwitch();
         
@@ -37,12 +35,12 @@ public class JumpingState : IPlayerState
         }
     }
     
-    public void FixedUpdateState(PlayerStateMachine player)
+    public void FixedUpdateState(PlayerController player)
     {
-        // El movimiento vertical se maneja en FixedUpdate del PlayerStateMachine
+        player.ApplyVerticalVelocity();
     }
     
-    public void ExitState(PlayerStateMachine player)
+    public void ExitState(PlayerController player)
     {
         if (player.animator != null)
         {

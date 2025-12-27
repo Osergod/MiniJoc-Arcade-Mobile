@@ -5,10 +5,10 @@ public class SlidingState : IPlayerState
 {
     private float slideEndTime;
     
-    public void EnterState(PlayerStateMachine player)
+    public void EnterState(PlayerController player)
     {
         slideEndTime = Time.time + player.slideDuration;
-        player.FreezeYPosition();
+        player.LockYPosition();
         
         if (player.animator != null)
         {
@@ -16,44 +16,39 @@ public class SlidingState : IPlayerState
             player.animator.SetBool("IsSliding", true);
         }
         
-        // Ajustar altura del collider
         if (player.playerCollider != null)
         {
             player.playerCollider.height = player.slideHeight;
         }
     }
     
-    public void UpdateState(PlayerStateMachine player)
+    public void UpdateState(PlayerController player)
     {
-        player.isGrounded = player.CheckGround();
+        player.isGrounded = player.CheckGroundContact();
         
-        // Verificar fin del slide
         if (Time.time >= slideEndTime)
         {
-            player.ChangeState(player.groundedState);
+            player.ChangeState(PlayerController.PlayerState.Grounded);
             return;
         }
         
-        // Verificar si deja de estar grounded durante el slide
         if (!player.isGrounded)
         {
-            player.ChangeState(player.fallingState);
+            player.ChangeState(PlayerController.PlayerState.Falling);
             return;
         }
         
-        // Movimiento horizontal
         player.MoveForward();
         player.SmoothLaneSwitch();
     }
     
-    public void FixedUpdateState(PlayerStateMachine player)
+    public void FixedUpdateState(PlayerController player)
     {
         // Lógica física del slide
     }
     
-    public void ExitState(PlayerStateMachine player)
+    public void ExitState(PlayerController player)
     {
-        // Restaurar altura del collider
         if (player.playerCollider != null)
         {
             player.playerCollider.height = player.originalHeight;
