@@ -1,12 +1,13 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 
 public class CoinManager : MonoBehaviour
 {
     public static CoinManager Instance { get; private set; }
     
     [Header("UI")]
-    public Text coinCountText;
+    public TMP_Text coinCountText;
     
     private int totalCoins = 0;
     
