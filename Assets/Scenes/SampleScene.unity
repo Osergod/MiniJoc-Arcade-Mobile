@@ -821,14 +821,16 @@ MonoBehaviour:
   - 0
   - 2.5
   cellsPerSegment: 8
-  laneWidth: 2.5
   coinProbability: 0.1
-  obstacleProbability: 0.2
-  noObstacleStartTime: 5
-  wideObstacleScale: {x: 7.5, y: 1, z: 2}
-  longObstacleScale: {x: 2, y: 1, z: 4}
-  highObstacleScale: {x: 7.5, y: 3, z: 2}
+  obstacleProbability: 0.3
+  noObstacleStartTime: 2
+  wideObstacleScale: {x: 10, y: 1, z: 2}
+  longObstacleScale: {x: 5, y: 1, z: 2}
+  highObstacleScale: {x: 10, y: 3, z: 2}
   highObstacleHeight: 2.5
+  minDistanceBetweenObstacles: 2
+  obstacleTransparency: 0.85
+  obstacleColor: {r: 0.5, g: 0, b: 0, a: 1}
 --- !u!114 &821306653
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1310,7 +1312,7 @@ MonoBehaviour:
   moveSpeed: 5
   laneSwitchSpeed: 12
   laneWidth: 2.5
-  jumpForce: 15
+  jumpForce: 10
   gravity: -30
   groundCheckRadius: 0.3
   slideDuration: 1

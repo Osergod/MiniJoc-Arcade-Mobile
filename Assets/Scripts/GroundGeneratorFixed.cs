@@ -14,7 +14,6 @@ public class GroundGeneratorFixed : MonoBehaviour
     public int segmentsAhead = 8;
     public float[] lanePositions = { -2.5f, 0f, 2.5f };
     public int cellsPerSegment = 8;
-    public float laneWidth = 2.5f;
     
     [Header("Probabilities")]
     [Range(0f, 1f)] public float coinProbability = 0.3f;
@@ -28,16 +27,24 @@ public class GroundGeneratorFixed : MonoBehaviour
     
     [Header("Obstacle Placement")]
     public float highObstacleHeight = 2f;
+    public float minDistanceBetweenObstacles = 0.5f;
+    
+    [Header("Visual Settings")]
+    [Range(0f, 1f)] public float obstacleTransparency = 0.85f;
+    public Color obstacleColor = new Color(0.5f, 0f, 0f, 1f); // COLOR GRANATE para todos
     
     private float nextZ = 0f;
     private Queue<GameObject> activeSegments = new Queue<GameObject>();
     private float gameStartTime;
     private Dictionary<int, bool[,]> occupiedCellsMap = new Dictionary<int, bool[,]>();
     private int currentSegmentIndex = 0;
+    private float lastObstacleTime = -10f;
+    private List<float> obstaclePositions = new List<float>();
     
     void Start()
     {
         gameStartTime = Time.time;
+        lastObstacleTime = -minDistanceBetweenObstacles;
         
         for (int i = 0; i < segmentsAhead; i++)
         {
@@ -60,6 +67,8 @@ public class GroundGeneratorFixed : MonoBehaviour
                 DestroyOldSegment();
             }
         }
+        
+        CleanObstaclePositions();
     }
     
     void CreateSegment()
@@ -89,69 +98,98 @@ public class GroundGeneratorFixed : MonoBehaviour
         Destroy(oldSegment);
     }
     
-    void GenerateObjectsForSegment(Transform segment, int segmentIndex)
+    void CleanObstaclePositions()
     {
-        float cellLength = groundLength / cellsPerSegment;
-        float segmentStartZ = nextZ - groundLength;
-        
-        // Primero intentar colocar obstáculos
-        for (int cellIndex = 0; cellIndex < cellsPerSegment; cellIndex++)
+        if (player != null)
         {
-            float cellZ = segmentStartZ + (cellIndex * cellLength) + (cellLength / 2f);
-            
-            // Decidir si poner obstáculo en esta celda (probabilidad más alta)
-            if (Random.value < obstacleProbability && CanSpawnObstacles())
+            for (int i = obstaclePositions.Count - 1; i >= 0; i--)
             {
-                TryPlaceObstacleInCell(segment, segmentIndex, cellIndex, cellZ);
-            }
-        }
-        
-        // Luego colocar monedas en celdas libres
-        for (int cellIndex = 0; cellIndex < cellsPerSegment; cellIndex++)
-        {
-            float cellZ = segmentStartZ + (cellIndex * cellLength) + (cellLength / 2f);
-            
-            for (int laneIndex = 0; laneIndex < lanePositions.Length; laneIndex++)
-            {
-                if (!occupiedCellsMap[segmentIndex][cellIndex, laneIndex] && 
-                    Random.value < coinProbability)
+                if (obstaclePositions[i] < player.position.z - 20f)
                 {
-                    PlaceCoin(segment, lanePositions[laneIndex], cellZ);
+                    obstaclePositions.RemoveAt(i);
                 }
             }
         }
     }
     
+    void GenerateObjectsForSegment(Transform segment, int segmentIndex)
+    {
+        float cellLength = groundLength / cellsPerSegment;
+        float segmentStartZ = nextZ - groundLength;
+        
+        // Primero monedas
+        for (int cellIndex = 0; cellIndex < cellsPerSegment; cellIndex++)
+        {
+            float cellZ = segmentStartZ + (cellIndex * cellLength) + (cellLength / 2f);
+            
+            for (int laneIndex = 0; laneIndex < lanePositions.Length; laneIndex++)
+            {
+                if (Random.value < coinProbability)
+                {
+                    PlaceCoin(segment, lanePositions[laneIndex], cellZ);
+                }
+            }
+        }
+        
+        // Luego obstáculos
+        for (int cellIndex = 0; cellIndex < cellsPerSegment; cellIndex++)
+        {
+            float cellZ = segmentStartZ + (cellIndex * cellLength) + (cellLength / 2f);
+            
+            if (CanPlaceObstacleAtPosition(cellZ) && 
+                Random.value < obstacleProbability && 
+                CanSpawnObstacles())
+            {
+                TryPlaceObstacleInCell(segment, segmentIndex, cellIndex, cellZ);
+            }
+        }
+    }
+    
+    bool CanPlaceObstacleAtPosition(float zPosition)
+    {
+        float timeSinceLastObstacle = Time.time - lastObstacleTime;
+        if (timeSinceLastObstacle < minDistanceBetweenObstacles)
+        {
+            return false;
+        }
+        
+        float minDistanceInUnits = minDistanceBetweenObstacles * 10f;
+        foreach (float obstacleZ in obstaclePositions)
+        {
+            if (Mathf.Abs(zPosition - obstacleZ) < minDistanceInUnits)
+            {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
     void TryPlaceObstacleInCell(Transform segment, int segmentIndex, int cellIndex, float cellZ)
     {
-        // Seleccionar tipo de obstáculo
         ObstacleType.Type obstacleType = SelectObstacleType();
         
-        // DEBUG: Ver qué tipo se seleccionó
-        Debug.Log($"Intentando colocar obstáculo tipo: {obstacleType} en celda {cellIndex}");
-        
-        // Para Wide y High, siempre usar carril central y ocupar 3 carriles
         if (obstacleType == ObstacleType.Type.Wide || obstacleType == ObstacleType.Type.High)
         {
-            // Verificar si hay espacio para obstáculo de 3 carriles
             if (HasSpaceForWideObstacle(segmentIndex, cellIndex))
             {
                 PlaceObstacle(segment, lanePositions[1], cellZ, 1, segmentIndex, cellIndex, obstacleType);
-            }
-            else
-            {
-                // Si no hay espacio, intentar con Long en su lugar
-                TryPlaceLongObstacle(segment, segmentIndex, cellIndex, cellZ);
+                lastObstacleTime = Time.time;
+                obstaclePositions.Add(cellZ);
             }
         }
         else // Long obstacle
         {
-            // Intentar en cada carril hasta encontrar uno libre
-            for (int laneIndex = 0; laneIndex < lanePositions.Length; laneIndex++)
+            List<int> availableLanes = new List<int> { 0, 1, 2 };
+            ShuffleList(availableLanes);
+            
+            foreach (int laneIndex in availableLanes)
             {
                 if (CanPlaceLongObstacle(segmentIndex, cellIndex, laneIndex))
                 {
                     PlaceObstacle(segment, lanePositions[laneIndex], cellZ, laneIndex, segmentIndex, cellIndex, obstacleType);
+                    lastObstacleTime = Time.time;
+                    obstaclePositions.Add(cellZ);
                     break;
                 }
             }
@@ -160,14 +198,12 @@ public class GroundGeneratorFixed : MonoBehaviour
     
     bool HasSpaceForWideObstacle(int segmentIndex, int cellIndex)
     {
-        // Verificar que los 3 carriles estén libres en esta celda
         for (int laneIndex = 0; laneIndex < 3; laneIndex++)
         {
             if (occupiedCellsMap[segmentIndex][cellIndex, laneIndex])
                 return false;
         }
         
-        // También verificar celdas adyacentes por el largo del obstáculo
         int cellsNeeded = Mathf.CeilToInt(wideObstacleScale.z / (groundLength / cellsPerSegment));
         
         for (int c = 0; c < cellsNeeded; c++)
@@ -187,11 +223,9 @@ public class GroundGeneratorFixed : MonoBehaviour
     
     bool CanPlaceLongObstacle(int segmentIndex, int cellIndex, int laneIndex)
     {
-        // Verificar que este carril esté libre
         if (occupiedCellsMap[segmentIndex][cellIndex, laneIndex])
             return false;
         
-        // Verificar celdas adyacentes por el largo
         int cellsNeeded = Mathf.CeilToInt(longObstacleScale.z / (groundLength / cellsPerSegment));
         
         for (int c = 0; c < cellsNeeded; c++)
@@ -204,24 +238,6 @@ public class GroundGeneratorFixed : MonoBehaviour
         }
         
         return true;
-    }
-    
-    void TryPlaceLongObstacle(Transform segment, int segmentIndex, int cellIndex, float cellZ)
-    {
-        // Intentar en cada carril
-        List<int> availableLanes = new List<int> { 0, 1, 2 };
-        
-        // Mezclar los carriles para variedad
-        ShuffleList(availableLanes);
-        
-        foreach (int laneIndex in availableLanes)
-        {
-            if (CanPlaceLongObstacle(segmentIndex, cellIndex, laneIndex))
-            {
-                PlaceObstacle(segment, lanePositions[laneIndex], cellZ, laneIndex, segmentIndex, cellIndex, ObstacleType.Type.Long);
-                return;
-            }
-        }
     }
     
     void ShuffleList<T>(List<T> list)
@@ -265,20 +281,17 @@ public class GroundGeneratorFixed : MonoBehaviour
             case ObstacleType.Type.Wide:
                 scale = wideObstacleScale;
                 position = new Vector3(lanePositions[1], wideObstacleScale.y / 2f, zPos);
-                Debug.Log($"Colocando Wide en posición: {position}");
                 break;
                 
             case ObstacleType.Type.Long:
                 scale = longObstacleScale;
                 position = new Vector3(xPos, longObstacleScale.y / 2f, zPos);
                 rotation = Quaternion.Euler(0f, 90f, 0f);
-                Debug.Log($"Colocando Long en posición: {position}, carril: {laneIndex}");
                 break;
                 
             case ObstacleType.Type.High:
                 scale = highObstacleScale;
                 position = new Vector3(lanePositions[1], highObstacleHeight, zPos);
-                Debug.Log($"Colocando High en posición: {position}");
                 break;
         }
         
@@ -287,6 +300,10 @@ public class GroundGeneratorFixed : MonoBehaviour
         obstacle.transform.rotation = rotation;
         obstacle.transform.SetParent(segment);
         
+        // Aplicar color granate con transparencia
+        ApplyMarbleColor(obstacle);
+        
+        // Configurar script ObstacleType
         ObstacleType obstacleScript = obstacle.GetComponent<ObstacleType>();
         if (obstacleScript == null)
             obstacleScript = obstacle.AddComponent<ObstacleType>();
@@ -294,19 +311,45 @@ public class GroundGeneratorFixed : MonoBehaviour
         obstacleScript.obstacleType = obstacleType;
         
         MarkCellsAsOccupied(obstacleType, segmentIndex, cellIndex, laneIndex);
+    }
+    
+    void ApplyMarbleColor(GameObject obstacle)
+    {
+        Renderer[] renderers = obstacle.GetComponentsInChildren<Renderer>(true);
         
-        // DEBUG
-        Debug.Log($"Obstáculo {obstacleType} colocado exitosamente!");
+        foreach (Renderer renderer in renderers)
+        {
+            Material material = new Material(renderer.material);
+            
+            // Color granate con transparencia
+            Color marbleColor = obstacleColor;
+            marbleColor.a = obstacleTransparency;
+            material.color = marbleColor;
+            
+            // Configurar para transparencia
+            if (material.shader.name.Contains("Standard"))
+            {
+                material.SetFloat("_Mode", 3);
+                material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                material.SetInt("_ZWrite", 0);
+                material.DisableKeyword("_ALPHATEST_ON");
+                material.EnableKeyword("_ALPHABLEND_ON");
+                material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                material.renderQueue = 3000;
+            }
+            
+            renderer.material = material;
+        }
     }
     
     ObstacleType.Type SelectObstacleType()
     {
         float random = Random.value;
         
-        // Aumentar probabilidad de Wide y High para debugging
-        if (random < 0.33f) return ObstacleType.Type.Wide;    // 33%
-        if (random < 0.66f) return ObstacleType.Type.High;    // 33%
-        return ObstacleType.Type.Long;                        // 34%
+        if (random < 0.33f) return ObstacleType.Type.Wide;
+        if (random < 0.66f) return ObstacleType.Type.High;
+        return ObstacleType.Type.Long;
     }
     
     void MarkCellsAsOccupied(ObstacleType.Type type, int segmentIndex, int cellIndex, int laneIndex)
@@ -319,7 +362,7 @@ public class GroundGeneratorFixed : MonoBehaviour
             case ObstacleType.Type.Wide:
                 lanesOccupied = 3;
                 cellsOccupied = Mathf.Max(1, Mathf.CeilToInt(wideObstacleScale.z / (groundLength / cellsPerSegment)));
-                laneIndex = 0; // Empezar desde carril 0
+                laneIndex = 0;
                 break;
                 
             case ObstacleType.Type.Long:
@@ -343,36 +386,6 @@ public class GroundGeneratorFixed : MonoBehaviour
                 if (markLane < lanePositions.Length && markCell < cellsPerSegment)
                 {
                     occupiedCellsMap[segmentIndex][markCell, markLane] = true;
-                    Debug.Log($"Marcando celda [{markCell}, {markLane}] como ocupada");
-                }
-            }
-        }
-    }
-    
-    // Método para debugging
-    void OnDrawGizmos()
-    {
-        if (!Application.isPlaying) return;
-        
-        // Dibujar celdas ocupadas
-        Gizmos.color = Color.red;
-        foreach (var segmentPair in occupiedCellsMap)
-        {
-            int segmentIndex = segmentPair.Key;
-            bool[,] cells = segmentPair.Value;
-            
-            float segmentZ = segmentIndex * groundLength;
-            
-            for (int cell = 0; cell < cellsPerSegment; cell++)
-            {
-                for (int lane = 0; lane < lanePositions.Length; lane++)
-                {
-                    if (cells[cell, lane])
-                    {
-                        float cellZ = segmentZ + (cell * groundLength / cellsPerSegment) + (groundLength / cellsPerSegment / 2f);
-                        Vector3 center = new Vector3(lanePositions[lane], 0.5f, cellZ);
-                        Gizmos.DrawWireCube(center, new Vector3(2f, 1f, groundLength / cellsPerSegment));
-                    }
                 }
             }
         }
