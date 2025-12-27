@@ -345,6 +345,8 @@ GameObject:
   - component: {fileID: 548936924}
   - component: {fileID: 548936925}
   - component: {fileID: 548936923}
+  - component: {fileID: 548936926}
+  - component: {fileID: 548936927}
   m_Layer: 0
   m_Name: Camera
   m_TagString: MainCamera
@@ -517,6 +519,43 @@ MonoBehaviour:
   m_CameraActivatedEvent:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &548936926
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 548936919}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e8ba5bee0805bca44a91714049bab664, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  player: {fileID: 548936922}
+  mainCamera: {fileID: 548936921}
+  offset: {x: 0, y: 2, z: -5}
+  followSpeed: 10
+  maxTiltAngle: 15
+  tiltSpeed: 5
+  slideHeightOffset: -0.5
+  lookAheadDistance: 3
+  lookAtHeight: 1
+--- !u!114 &548936927
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 548936919}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5df366ff5276094488dc1b86ee42ded8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  player: {fileID: 1983775042}
+  screenOverlay: {fileID: 0}
+  slideColor: {r: 0.5, g: 0.8, b: 1, a: 0.1}
+  effectFadeSpeed: 5
 --- !u!1 &584515910
 GameObject:
   m_ObjectHideFlags: 0
@@ -1330,6 +1369,7 @@ MonoBehaviour:
   rb: {fileID: 0}
   animator: {fileID: 0}
   playerCollider: {fileID: 0}
+  currentState: 0
 --- !u!136 &1983775043
 CapsuleCollider:
   m_ObjectHideFlags: 0

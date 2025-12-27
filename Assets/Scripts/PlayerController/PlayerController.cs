@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using System.Collections;
 
 public class PlayerController : MonoBehaviour
 {
@@ -50,9 +51,12 @@ public class PlayerController : MonoBehaviour
     [HideInInspector] public Rigidbody rb;
     [HideInInspector] public Animator animator;
     [HideInInspector] public CapsuleCollider playerCollider;
+    [HideInInspector] public PlayerState currentState = PlayerState.Grounded;
+    
+    // ========== PROPERTY PARA LA CÁMARA ==========
+    public bool IsSliding { get; private set; }
     
     // ========== ESTADOS ==========
-    private PlayerState currentState = PlayerState.Grounded;
     private GroundedState groundedState = new GroundedState();
     private JumpingState jumpingState = new JumpingState();
     private FallingState fallingState = new FallingState();
@@ -63,6 +67,11 @@ public class PlayerController : MonoBehaviour
     private bool isTouching = false;
     private bool swipeProcessed = false;
     
+    // Variables para deslizamiento
+    private float originalColliderHeight;
+    private Vector3 originalColliderCenter;
+    private Coroutine slideCoroutine;
+    
     void Start()
     {
         rb = GetComponent<Rigidbody>();
@@ -72,6 +81,8 @@ public class PlayerController : MonoBehaviour
         if (playerCollider != null)
         {
             originalHeight = playerCollider.height;
+            originalColliderHeight = playerCollider.height;
+            originalColliderCenter = playerCollider.center;
         }
         
         InitializeRigidbody();
@@ -84,6 +95,7 @@ public class PlayerController : MonoBehaviour
         
         // Iniciar en estado Grounded
         ChangeState(PlayerState.Grounded);
+        IsSliding = false;
     }
     
     void InitializeRigidbody()
@@ -110,6 +122,12 @@ public class PlayerController : MonoBehaviour
         
         // Actualizar animaciones
         UpdateAnimations();
+        
+        // Verificar auto salto si está en el suelo
+        if (currentState == PlayerState.Grounded)
+        {
+            CheckAutoJump();
+        }
     }
     
     void FixedUpdate()
@@ -129,7 +147,6 @@ public class PlayerController : MonoBehaviour
         {
             case PlayerState.Grounded:
                 groundedState.UpdateState(this);
-                CheckAutoJump();
                 break;
             case PlayerState.Jumping:
                 jumpingState.UpdateState(this);
@@ -145,9 +162,14 @@ public class PlayerController : MonoBehaviour
     
     public void ChangeState(PlayerState newState)
     {
+        // Salir del estado actual
         ExitCurrentState();
-        EnterNewState(newState);
+        
+        // Actualizar estado
         currentState = newState;
+        
+        // Entrar al nuevo estado
+        EnterNewState(newState);
     }
     
     void ExitCurrentState()
@@ -175,15 +197,19 @@ public class PlayerController : MonoBehaviour
         {
             case PlayerState.Grounded:
                 groundedState.EnterState(this);
+                IsSliding = false;
                 break;
             case PlayerState.Jumping:
                 jumpingState.EnterState(this);
+                IsSliding = false;
                 break;
             case PlayerState.Falling:
                 fallingState.EnterState(this);
+                IsSliding = false;
                 break;
             case PlayerState.Sliding:
                 slidingState.EnterState(this);
+                IsSliding = true;
                 break;
         }
     }
@@ -323,12 +349,12 @@ public class PlayerController : MonoBehaviour
             MoveRight();
         }
         
-        if (Keyboard.current.spaceKey.wasPressedThisFrame)
+        if (Keyboard.current.spaceKey.wasPressedThisFrame || Keyboard.current.upArrowKey.wasPressedThisFrame)
         {
             Jump();
         }
         
-        if (Keyboard.current.downArrowKey.wasPressedThisFrame)
+        if (Keyboard.current.downArrowKey.wasPressedThisFrame || Keyboard.current.sKey.wasPressedThisFrame)
         {
             Slide();
         }
@@ -346,10 +372,82 @@ public class PlayerController : MonoBehaviour
     
     public void Slide()
     {
+        Debug.Log("Tecla ABAJO presionada - Slide() llamado");
+    
         if (currentState == PlayerState.Grounded)
         {
+            Debug.Log("Cambiando a estado Sliding");
             ChangeState(PlayerState.Sliding);
+        
+            // AÑADE ESTO para que realmente se deslice:
+            IsSliding = true;
+        
+            // Reducir collider inmediatamente
+            if (playerCollider != null)
+            {
+                playerCollider.height = slideHeight;
+                playerCollider.center = new Vector3(0f, slideHeight / 2f, 0f);
+            }
+        
+            // Iniciar corrutina para restaurar
+            StartCoroutine(EndSlideAfterDuration());
         }
+        else
+        {
+            Debug.Log($"No puede deslizar. Estado actual: {currentState}");
+        }
+    }
+
+IEnumerator EndSlideAfterDuration()
+{
+    yield return new WaitForSeconds(slideDuration);
+    
+    // Restaurar collider
+    if (playerCollider != null)
+    {
+        playerCollider.height = originalHeight;
+        playerCollider.center = Vector3.zero;
+    }
+    
+    IsSliding = false;
+    
+    // Volver a estado Grounded si está en el suelo
+    if (isGrounded)
+    {
+        ChangeState(PlayerState.Grounded);
+    }
+}
+    
+    IEnumerator PerformSlide()
+    {
+        // Configurar collider para deslizamiento
+        if (playerCollider != null)
+        {
+            playerCollider.height = slideHeight;
+            playerCollider.center = new Vector3(0f, slideHeight / 2f, 0f);
+        }
+        
+        // Esperar duración del deslizamiento
+        yield return new WaitForSeconds(slideDuration);
+        
+        // Restaurar collider
+        if (playerCollider != null)
+        {
+            playerCollider.height = originalColliderHeight;
+            playerCollider.center = originalColliderCenter;
+        }
+        
+        // Verificar estado después del deslizamiento
+        if (isGrounded)
+        {
+            ChangeState(PlayerState.Grounded);
+        }
+        else
+        {
+            ChangeState(PlayerState.Falling);
+        }
+        
+        slideCoroutine = null;
     }
     
     void CheckAutoJump()
@@ -374,6 +472,22 @@ public class PlayerController : MonoBehaviour
         }
     }
     
+    void OnCollisionStay(Collision collision)
+    {
+        if (collision.gameObject.CompareTag("Ground"))
+        {
+            isGrounded = true;
+        }
+    }
+    
+    void OnCollisionExit(Collision collision)
+    {
+        if (collision.gameObject.CompareTag("Ground"))
+        {
+            isGrounded = false;
+        }
+    }
+    
     void OnTriggerEnter(Collider other)
     {
         if (other.CompareTag("Coin"))
@@ -394,6 +508,7 @@ public class PlayerController : MonoBehaviour
     {
         if (groundCheck == null) return true;
         bool grounded = Physics.CheckSphere(groundCheck.position, groundCheckRadius, groundLayer);
+        isGrounded = grounded;
         return grounded;
     }
     
