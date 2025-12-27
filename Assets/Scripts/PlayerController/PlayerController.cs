@@ -129,6 +129,7 @@ public class PlayerController : MonoBehaviour
         {
             case PlayerState.Grounded:
                 groundedState.UpdateState(this);
+                CheckAutoJump();
                 break;
             case PlayerState.Jumping:
                 jumpingState.UpdateState(this);
@@ -409,7 +410,8 @@ public class PlayerController : MonoBehaviour
     }
     
     // ========== DEBUG ==========
-    
+    // Esto solo en Editor
+    #if UNITY_EDITOR
     void OnDrawGizmosSelected()
     {
         if (groundCheck != null)
@@ -418,4 +420,5 @@ public class PlayerController : MonoBehaviour
             Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
         }
     }
+    #endif
 }
