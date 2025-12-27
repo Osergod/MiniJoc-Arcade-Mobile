@@ -6,7 +6,7 @@ public class GroundGeneratorFixed : MonoBehaviour
     [Header("Prefabs")]
     public GameObject groundPrefab;
     public GameObject coinPrefab;
-    public GameObject obstacleBasePrefab; // SOLO UN PREFAB BASE (cubo 1x1x1)
+    public GameObject obstacleBasePrefab;
     
     [Header("Settings")]
     public Transform player;
@@ -14,16 +14,20 @@ public class GroundGeneratorFixed : MonoBehaviour
     public int segmentsAhead = 8;
     public float[] lanePositions = { -2.5f, 0f, 2.5f };
     public int cellsPerSegment = 8;
+    public float laneWidth = 2.5f;
     
     [Header("Probabilities")]
     [Range(0f, 1f)] public float coinProbability = 0.3f;
-    [Range(0f, 1f)] public float obstacleProbability = 0.2f;
+    [Range(0f, 1f)] public float obstacleProbability = 0.25f;
     public float noObstacleStartTime = 5f;
     
     [Header("Obstacle Dimensions")]
-    public Vector3 wideObstacleScale = new Vector3(2f, 1f, 1f);   // Ancho
-    public Vector3 longObstacleScale = new Vector3(1f, 1f, 2f);   // Largo
-    public Vector3 highObstacleScale = new Vector3(1f, 2f, 1f);   // Alto
+    public Vector3 wideObstacleScale = new Vector3(7.5f, 1f, 2f);
+    public Vector3 longObstacleScale = new Vector3(2f, 1f, 4f);
+    public Vector3 highObstacleScale = new Vector3(7.5f, 3f, 2f);
+    
+    [Header("Obstacle Placement")]
+    public float highObstacleHeight = 2f;
     
     private float nextZ = 0f;
     private Queue<GameObject> activeSegments = new Queue<GameObject>();
@@ -64,7 +68,6 @@ public class GroundGeneratorFixed : MonoBehaviour
         segment.transform.position = new Vector3(0f, 0f, nextZ);
         activeSegments.Enqueue(segment);
         
-        // Inicializar mapa de celdas ocupadas para este segmento
         occupiedCellsMap[currentSegmentIndex] = new bool[cellsPerSegment, lanePositions.Length];
         
         GenerateObjectsForSegment(segment.transform, currentSegmentIndex);
@@ -77,7 +80,6 @@ public class GroundGeneratorFixed : MonoBehaviour
     {
         GameObject oldSegment = activeSegments.Dequeue();
         
-        // Limpiar mapa de celdas ocupadas
         int oldestSegmentIndex = currentSegmentIndex - activeSegments.Count - 1;
         if (occupiedCellsMap.ContainsKey(oldestSegmentIndex))
         {
@@ -92,38 +94,145 @@ public class GroundGeneratorFixed : MonoBehaviour
         float cellLength = groundLength / cellsPerSegment;
         float segmentStartZ = nextZ - groundLength;
         
+        // Primero intentar colocar obstáculos
+        for (int cellIndex = 0; cellIndex < cellsPerSegment; cellIndex++)
+        {
+            float cellZ = segmentStartZ + (cellIndex * cellLength) + (cellLength / 2f);
+            
+            // Decidir si poner obstáculo en esta celda (probabilidad más alta)
+            if (Random.value < obstacleProbability && CanSpawnObstacles())
+            {
+                TryPlaceObstacleInCell(segment, segmentIndex, cellIndex, cellZ);
+            }
+        }
+        
+        // Luego colocar monedas en celdas libres
         for (int cellIndex = 0; cellIndex < cellsPerSegment; cellIndex++)
         {
             float cellZ = segmentStartZ + (cellIndex * cellLength) + (cellLength / 2f);
             
             for (int laneIndex = 0; laneIndex < lanePositions.Length; laneIndex++)
             {
-                // Saltar si la celda ya está ocupada
-                if (occupiedCellsMap[segmentIndex][cellIndex, laneIndex])
-                    continue;
-                    
-                float laneX = lanePositions[laneIndex];
-                
-                DecideAndPlaceObject(segment, laneX, cellZ, laneIndex, segmentIndex, cellIndex);
+                if (!occupiedCellsMap[segmentIndex][cellIndex, laneIndex] && 
+                    Random.value < coinProbability)
+                {
+                    PlaceCoin(segment, lanePositions[laneIndex], cellZ);
+                }
             }
         }
     }
     
-    void DecideAndPlaceObject(Transform segment, float xPos, float zPos, int laneIndex, 
-                              int segmentIndex, int cellIndex)
+    void TryPlaceObstacleInCell(Transform segment, int segmentIndex, int cellIndex, float cellZ)
     {
-        float randomValue = Random.value;
-        float totalProbability = coinProbability + obstacleProbability;
+        // Seleccionar tipo de obstáculo
+        ObstacleType.Type obstacleType = SelectObstacleType();
         
-        if (randomValue < coinProbability)
+        // DEBUG: Ver qué tipo se seleccionó
+        Debug.Log($"Intentando colocar obstáculo tipo: {obstacleType} en celda {cellIndex}");
+        
+        // Para Wide y High, siempre usar carril central y ocupar 3 carriles
+        if (obstacleType == ObstacleType.Type.Wide || obstacleType == ObstacleType.Type.High)
         {
-            PlaceCoin(segment, xPos, zPos);
+            // Verificar si hay espacio para obstáculo de 3 carriles
+            if (HasSpaceForWideObstacle(segmentIndex, cellIndex))
+            {
+                PlaceObstacle(segment, lanePositions[1], cellZ, 1, segmentIndex, cellIndex, obstacleType);
+            }
+            else
+            {
+                // Si no hay espacio, intentar con Long en su lugar
+                TryPlaceLongObstacle(segment, segmentIndex, cellIndex, cellZ);
+            }
         }
-        else if (randomValue < totalProbability && CanSpawnObstacles())
+        else // Long obstacle
         {
-            PlaceObstacle(segment, xPos, zPos, laneIndex, segmentIndex, cellIndex);
+            // Intentar en cada carril hasta encontrar uno libre
+            for (int laneIndex = 0; laneIndex < lanePositions.Length; laneIndex++)
+            {
+                if (CanPlaceLongObstacle(segmentIndex, cellIndex, laneIndex))
+                {
+                    PlaceObstacle(segment, lanePositions[laneIndex], cellZ, laneIndex, segmentIndex, cellIndex, obstacleType);
+                    break;
+                }
+            }
         }
-        // Si no, dejar vacío
+    }
+    
+    bool HasSpaceForWideObstacle(int segmentIndex, int cellIndex)
+    {
+        // Verificar que los 3 carriles estén libres en esta celda
+        for (int laneIndex = 0; laneIndex < 3; laneIndex++)
+        {
+            if (occupiedCellsMap[segmentIndex][cellIndex, laneIndex])
+                return false;
+        }
+        
+        // También verificar celdas adyacentes por el largo del obstáculo
+        int cellsNeeded = Mathf.CeilToInt(wideObstacleScale.z / (groundLength / cellsPerSegment));
+        
+        for (int c = 0; c < cellsNeeded; c++)
+        {
+            int checkCell = cellIndex + c;
+            if (checkCell >= cellsPerSegment) return false;
+            
+            for (int laneIndex = 0; laneIndex < 3; laneIndex++)
+            {
+                if (occupiedCellsMap[segmentIndex][checkCell, laneIndex])
+                    return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    bool CanPlaceLongObstacle(int segmentIndex, int cellIndex, int laneIndex)
+    {
+        // Verificar que este carril esté libre
+        if (occupiedCellsMap[segmentIndex][cellIndex, laneIndex])
+            return false;
+        
+        // Verificar celdas adyacentes por el largo
+        int cellsNeeded = Mathf.CeilToInt(longObstacleScale.z / (groundLength / cellsPerSegment));
+        
+        for (int c = 0; c < cellsNeeded; c++)
+        {
+            int checkCell = cellIndex + c;
+            if (checkCell >= cellsPerSegment) return false;
+            
+            if (occupiedCellsMap[segmentIndex][checkCell, laneIndex])
+                return false;
+        }
+        
+        return true;
+    }
+    
+    void TryPlaceLongObstacle(Transform segment, int segmentIndex, int cellIndex, float cellZ)
+    {
+        // Intentar en cada carril
+        List<int> availableLanes = new List<int> { 0, 1, 2 };
+        
+        // Mezclar los carriles para variedad
+        ShuffleList(availableLanes);
+        
+        foreach (int laneIndex in availableLanes)
+        {
+            if (CanPlaceLongObstacle(segmentIndex, cellIndex, laneIndex))
+            {
+                PlaceObstacle(segment, lanePositions[laneIndex], cellZ, laneIndex, segmentIndex, cellIndex, ObstacleType.Type.Long);
+                return;
+            }
+        }
+    }
+    
+    void ShuffleList<T>(List<T> list)
+    {
+        for (int i = 0; i < list.Count; i++)
+        {
+            T temp = list[i];
+            int randomIndex = Random.Range(i, list.Count);
+            list[i] = list[randomIndex];
+            list[randomIndex] = temp;
+        }
     }
     
     bool CanSpawnObstacles()
@@ -138,151 +247,132 @@ public class GroundGeneratorFixed : MonoBehaviour
         GameObject coin = Instantiate(coinPrefab);
         coin.transform.position = new Vector3(xPos, 1f, zPos);
         coin.transform.SetParent(segment);
-        coin.transform.localScale = Vector3.one; // Forzar escala
     }
     
     void PlaceObstacle(Transform segment, float xPos, float zPos, int laneIndex, 
-                       int segmentIndex, int cellIndex)
+                       int segmentIndex, int cellIndex, ObstacleType.Type obstacleType)
     {
         if (obstacleBasePrefab == null) return;
         
-        // Seleccionar tipo de obstáculo
-        ObstacleType.Type obstacleType = SelectObstacleType(laneIndex);
-        
-        // Verificar si cabe
-        if (!CanPlaceObstacle(obstacleType, segmentIndex, cellIndex, laneIndex))
-            return;
-        
-        // Instanciar el obstáculo base
         GameObject obstacle = Instantiate(obstacleBasePrefab);
         
-        // Configurar escala según tipo
         Vector3 scale = Vector3.one;
-        Vector3 position = new Vector3(xPos, 0.5f, zPos);
+        Vector3 position = Vector3.zero;
+        Quaternion rotation = Quaternion.identity;
         
         switch (obstacleType)
         {
             case ObstacleType.Type.Wide:
                 scale = wideObstacleScale;
-                // Ajustar posición para obstáculos anchos
-                if (laneIndex == 0 || laneIndex == 1)
-                    position.x = (lanePositions[laneIndex] + lanePositions[laneIndex + 1]) / 2f;
+                position = new Vector3(lanePositions[1], wideObstacleScale.y / 2f, zPos);
+                Debug.Log($"Colocando Wide en posición: {position}");
                 break;
                 
             case ObstacleType.Type.Long:
                 scale = longObstacleScale;
+                position = new Vector3(xPos, longObstacleScale.y / 2f, zPos);
+                rotation = Quaternion.Euler(0f, 90f, 0f);
+                Debug.Log($"Colocando Long en posición: {position}, carril: {laneIndex}");
                 break;
                 
             case ObstacleType.Type.High:
                 scale = highObstacleScale;
-                position.y = highObstacleScale.y / 2f; // Centrar verticalmente
+                position = new Vector3(lanePositions[1], highObstacleHeight, zPos);
+                Debug.Log($"Colocando High en posición: {position}");
                 break;
         }
         
-        // Aplicar transformaciones
         obstacle.transform.position = position;
         obstacle.transform.localScale = scale;
+        obstacle.transform.rotation = rotation;
         obstacle.transform.SetParent(segment);
         
-        // Configurar el script ObstacleType
         ObstacleType obstacleScript = obstacle.GetComponent<ObstacleType>();
         if (obstacleScript == null)
             obstacleScript = obstacle.AddComponent<ObstacleType>();
             
         obstacleScript.obstacleType = obstacleType;
         
-        // Marcar celdas como ocupadas
         MarkCellsAsOccupied(obstacleType, segmentIndex, cellIndex, laneIndex);
+        
+        // DEBUG
+        Debug.Log($"Obstáculo {obstacleType} colocado exitosamente!");
     }
     
-    ObstacleType.Type SelectObstacleType(int laneIndex)
+    ObstacleType.Type SelectObstacleType()
     {
-        // Solo Wide y High pueden estar en carril central
-        if (laneIndex == 1) // Carril central
-        {
-            float random = Random.value;
-            if (random < 0.33f) return ObstacleType.Type.Wide;
-            if (random < 0.66f) return ObstacleType.Type.High;
-            return ObstacleType.Type.Long;
-        }
-        else // Carriles laterales
-        {
-            return ObstacleType.Type.Long; // Solo Long en laterales
-        }
-    }
-    
-    bool CanPlaceObstacle(ObstacleType.Type type, int segmentIndex, int cellIndex, int laneIndex)
-    {
-        // Determinar cuántas celdas ocupa
-        int cellsWidth = 1;
-        int cellsLength = 1;
+        float random = Random.value;
         
-        switch (type)
-        {
-            case ObstacleType.Type.Wide:
-                cellsWidth = 2; // Ocupa 2 carriles de ancho
-                // Verificar que no se salga de los límites
-                if (laneIndex >= lanePositions.Length - 1)
-                    return false;
-                break;
-                
-            case ObstacleType.Type.Long:
-                cellsLength = 2; // Ocupa 2 celdas de largo
-                // Verificar que no se salga del segmento
-                if (cellIndex >= cellsPerSegment - 1)
-                    return false;
-                break;
-        }
-        
-        // Verificar que todas las celdas necesarias estén libres
-        for (int w = 0; w < cellsWidth; w++)
-        {
-            for (int l = 0; l < cellsLength; l++)
-            {
-                int checkLane = laneIndex + w;
-                int checkCell = cellIndex + l;
-                
-                // Verificar límites
-                if (checkLane >= lanePositions.Length || checkCell >= cellsPerSegment)
-                    return false;
-                    
-                // Verificar si está ocupado
-                if (occupiedCellsMap[segmentIndex][checkCell, checkLane])
-                    return false;
-            }
-        }
-        
-        return true;
+        // Aumentar probabilidad de Wide y High para debugging
+        if (random < 0.33f) return ObstacleType.Type.Wide;    // 33%
+        if (random < 0.66f) return ObstacleType.Type.High;    // 33%
+        return ObstacleType.Type.Long;                        // 34%
     }
     
     void MarkCellsAsOccupied(ObstacleType.Type type, int segmentIndex, int cellIndex, int laneIndex)
     {
-        // Determinar cuántas celdas ocupa
-        int cellsWidth = 1;
-        int cellsLength = 1;
+        int lanesOccupied = 1;
+        int cellsOccupied = 1;
         
         switch (type)
         {
             case ObstacleType.Type.Wide:
-                cellsWidth = 2;
+                lanesOccupied = 3;
+                cellsOccupied = Mathf.Max(1, Mathf.CeilToInt(wideObstacleScale.z / (groundLength / cellsPerSegment)));
+                laneIndex = 0; // Empezar desde carril 0
                 break;
                 
             case ObstacleType.Type.Long:
-                cellsLength = 2;
+                cellsOccupied = Mathf.Max(1, Mathf.CeilToInt(longObstacleScale.z / (groundLength / cellsPerSegment)));
+                break;
+                
+            case ObstacleType.Type.High:
+                lanesOccupied = 3;
+                cellsOccupied = Mathf.Max(1, Mathf.CeilToInt(highObstacleScale.z / (groundLength / cellsPerSegment)));
+                laneIndex = 0;
                 break;
         }
         
-        // Marcar todas las celdas como ocupadas
-        for (int w = 0; w < cellsWidth; w++)
+        for (int l = 0; l < lanesOccupied; l++)
         {
-            for (int l = 0; l < cellsLength; l++)
+            for (int c = 0; c < cellsOccupied; c++)
             {
-                int markLane = laneIndex + w;
-                int markCell = cellIndex + l;
+                int markLane = laneIndex + l;
+                int markCell = cellIndex + c;
                 
                 if (markLane < lanePositions.Length && markCell < cellsPerSegment)
                 {
                     occupiedCellsMap[segmentIndex][markCell, markLane] = true;
+                    Debug.Log($"Marcando celda [{markCell}, {markLane}] como ocupada");
+                }
+            }
+        }
+    }
+    
+    // Método para debugging
+    void OnDrawGizmos()
+    {
+        if (!Application.isPlaying) return;
+        
+        // Dibujar celdas ocupadas
+        Gizmos.color = Color.red;
+        foreach (var segmentPair in occupiedCellsMap)
+        {
+            int segmentIndex = segmentPair.Key;
+            bool[,] cells = segmentPair.Value;
+            
+            float segmentZ = segmentIndex * groundLength;
+            
+            for (int cell = 0; cell < cellsPerSegment; cell++)
+            {
+                for (int lane = 0; lane < lanePositions.Length; lane++)
+                {
+                    if (cells[cell, lane])
+                    {
+                        float cellZ = segmentZ + (cell * groundLength / cellsPerSegment) + (groundLength / cellsPerSegment / 2f);
+                        Vector3 center = new Vector3(lanePositions[lane], 0.5f, cellZ);
+                        Gizmos.DrawWireCube(center, new Vector3(2f, 1f, groundLength / cellsPerSegment));
+                    }
                 }
             }
         }
