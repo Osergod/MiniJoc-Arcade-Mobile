@@ -26,7 +26,7 @@ public class PlayerController : MonoBehaviour
     [Header("Jump Settings")]
     public float jumpForce = 12f;
     public float gravity = -30f;
-    public float groundCheckRadius = 0.5f; // Aumentado
+    public float groundCheckRadius = 0.5f;
     
     [Header("Slide Settings")]
     public float slideDuration = 1f;
@@ -234,14 +234,12 @@ public class PlayerController : MonoBehaviour
     
     public void ApplyVerticalVelocity()
     {
-        // Este método lo llaman los estados en FixedUpdate
         Vector3 movement = new Vector3(0, verticalVelocity * Time.fixedDeltaTime, 0);
         transform.Translate(movement, Space.World);
     }
     
     void ApplyVerticalMovement()
     {
-        // Para uso interno
         ApplyVerticalVelocity();
     }
     
@@ -369,12 +367,6 @@ public class PlayerController : MonoBehaviour
     
     void OnCollisionEnter(Collision collision)
     {
-        if (collision.gameObject.CompareTag("Obstacle"))
-        {
-            // Sin muerte
-            Debug.Log("Colisión con obstáculo (sin efecto)");
-        }
-        
         if (collision.gameObject.CompareTag("Ground"))
         {
             isGrounded = true;
@@ -392,6 +384,7 @@ public class PlayerController : MonoBehaviour
     void CollectCoin(GameObject coin)
     {
         coin.SetActive(false);
+        Debug.Log("Moneda recolectada!");
     }
     
     // ========== UTILIDADES ==========
@@ -399,7 +392,8 @@ public class PlayerController : MonoBehaviour
     public bool CheckGroundContact()
     {
         if (groundCheck == null) return true;
-        return Physics.CheckSphere(groundCheck.position, groundCheckRadius, groundLayer);
+        bool grounded = Physics.CheckSphere(groundCheck.position, groundCheckRadius, groundLayer);
+        return grounded;
     }
     
     public void UpdateAnimations()
