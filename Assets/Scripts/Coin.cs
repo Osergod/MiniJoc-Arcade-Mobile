@@ -22,44 +22,61 @@ public class Coin : MonoBehaviour
     
     void OnEnable()
     {
+        // Reset cuando se reactive (útil para pooling)
         ResetCoin();
     }
     
     void SetupCoin()
     {
+        // Guardar posición inicial para animación flotante
         startPosition = transform.position;
-        randomOffset = Random.Range(0f, 2f * Mathf.PI); // CORREGIDO: 2 argumentos
+        randomOffset = Random.Range(0f, 2f * Mathf.PI);
+        
+        // Configurar apariencia
         ConfigureAppearance();
+        
+        // Configurar collider
         ConfigureCollider();
+        
         isCollected = false;
     }
     
     void ConfigureAppearance()
     {
-        // Resetear todo
+        // Resetear escala
         transform.localScale = Vector3.one;
         
-        // Para cilindros: rotar 90° en X para que quede horizontal
+        // Rotar cilindro para que quede horizontal (como moneda)
+        // Los cilindros en Unity se crean verticales por defecto
         transform.rotation = Quaternion.Euler(90f, 0f, 0f);
         
-        // Escalar para tamaño de moneda
-        transform.localScale = new Vector3(coinRadius * 2f, coinThickness, coinRadius * 2f);
+        // Ajustar escala del mesh si es un cilindro
+        MeshFilter meshFilter = GetComponentInChildren<MeshFilter>();
+        if (meshFilter != null)
+        {
+            // Escalar solo el mesh (no todo el GameObject)
+            Transform meshTransform = meshFilter.transform;
+            meshTransform.localScale = new Vector3(coinRadius, coinThickness, coinRadius);
+        }
     }
     
     void ConfigureCollider()
     {
-        // Buscar o crear CapsuleCollider
+        // Intentar usar CapsuleCollider (ideal para cilindros)
         CapsuleCollider capsule = GetComponent<CapsuleCollider>();
         
         if (capsule == null)
         {
+            // Si no hay, crear uno
             capsule = gameObject.AddComponent<CapsuleCollider>();
         }
         
         // Configurar como trigger
         capsule.isTrigger = true;
-        capsule.radius = 0.5f;
-        capsule.height = 0.1f;
+        
+        // Ajustar tamaño
+        capsule.radius = coinRadius;
+        capsule.height = coinThickness;
         capsule.direction = 1; // Eje Y
         capsule.center = Vector3.zero;
     }
@@ -68,7 +85,7 @@ public class Coin : MonoBehaviour
     {
         if (isCollected) return;
         
-        // Rotación en Y solamente
+        // Rotación continua
         transform.Rotate(0, rotationSpeed * Time.deltaTime, 0);
         
         // Animación de flotación
@@ -98,19 +115,45 @@ public class Coin : MonoBehaviour
     void CollectCoin()
     {
         isCollected = true;
+        
+        // Efectos visuales/sonoros (opcional)
+        PlayCollectionEffects();
+        
+        // Desactivar moneda
         gameObject.SetActive(false);
+        
+        // Notificar al GameManager
         NotifyCoinCollection();
+    }
+    
+    void PlayCollectionEffects()
+    {
+        // Aquí puedes añadir:
+        // - Sonido de recolección
+        // - Partículas
+        // - Animación
+        
+        // Ejemplo básico de partículas:
+        // GameObject particles = Instantiate(collectionParticles, transform.position, Quaternion.identity);
+        // Destroy(particles, 2f);
     }
     
     void NotifyCoinCollection()
     {
+        // Buscar CoinManager en la escena
         CoinManager coinManager = FindObjectOfType<CoinManager>();
         if (coinManager != null)
         {
             coinManager.AddCoin(1);
         }
+        else
+        {
+            // Alternativa: usar singleton o evento
+            Debug.Log("Moneda recolectada! (CoinManager no encontrado)");
+        }
     }
     
+    // Método público para resetear la moneda (para pooling)
     public void ResetCoin()
     {
         isCollected = false;
@@ -118,12 +161,46 @@ public class Coin : MonoBehaviour
         ConfigureCollider();
     }
     
-    // Gizmos solo en Editor
-    #if UNITY_EDITOR
-    void OnDrawGizmosSelected()
+    // Método para cambiar valores desde código si es necesario
+    public void SetCoinValues(float newRadius, float newThickness)
     {
+        coinRadius = newRadius;
+        coinThickness = newThickness;
+        ConfigureAppearance();
+        ConfigureCollider();
+    }
+    
+    // Visualización en el editor
+    void OnDrawGizmos()
+    {
+        // Solo mostrar en selección
+        if (!UnityEditor.Selection.Contains(gameObject)) return;
+        
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(transform.position, coinRadius);
+        
+        // Mostrar dirección de rotación
+        Gizmos.color = new Color(1f, 0.8f, 0f, 0.7f);
+        Gizmos.DrawLine(
+            transform.position,
+            transform.position + transform.up * 0.7f
+        );
     }
-    #endif
+    
+    void OnDrawGizmosSelected()
+    {
+        // Mostrar área del collider cuando está seleccionado
+        Gizmos.color = new Color(1f, 1f, 0f, 0.3f);
+        
+        Collider col = GetComponent<Collider>();
+        if (col != null)
+        {
+            Gizmos.DrawCube(col.bounds.center, col.bounds.size);
+        }
+        else
+        {
+            // Si no hay collider, mostrar área basada en radio
+            Gizmos.DrawSphere(transform.position, coinRadius);
+        }
+    }
 }

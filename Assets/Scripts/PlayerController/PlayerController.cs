@@ -525,8 +525,7 @@ IEnumerator EndSlideAfterDuration()
     }
     
     // ========== DEBUG ==========
-    // Esto solo en Editor
-    #if UNITY_EDITOR
+    
     void OnDrawGizmosSelected()
     {
         if (groundCheck != null)
@@ -535,5 +534,4 @@ IEnumerator EndSlideAfterDuration()
             Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
         }
     }
-    #endif
 }
