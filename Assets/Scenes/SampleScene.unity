@@ -830,7 +830,7 @@ MonoBehaviour:
   highObstacleHeight: 2.5
   minDistanceBetweenObstacles: 2
   obstacleTransparency: 0.85
-  obstacleColor: {r: 0.5, g: 0, b: 0, a: 1}
+  obstacleColor: {r: 1, g: 1, b: 1, a: 1}
 --- !u!114 &821306653
 MonoBehaviour:
   m_ObjectHideFlags: 0

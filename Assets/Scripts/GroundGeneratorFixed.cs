@@ -30,8 +30,7 @@ public class GroundGeneratorFixed : MonoBehaviour
     public float minDistanceBetweenObstacles = 0.5f;
     
     [Header("Visual Settings")]
-    [Range(0f, 1f)] public float obstacleTransparency = 0.85f;
-    public Color obstacleColor = new Color(0.5f, 0f, 0f, 1f); // COLOR GRANATE para todos
+    public Color obstacleColor = Color.white;
     
     private float nextZ = 0f;
     private Queue<GameObject> activeSegments = new Queue<GameObject>();
@@ -323,7 +322,6 @@ public class GroundGeneratorFixed : MonoBehaviour
             
             // Color granate con transparencia
             Color marbleColor = obstacleColor;
-            marbleColor.a = obstacleTransparency;
             material.color = marbleColor;
             
             // Configurar para transparencia
