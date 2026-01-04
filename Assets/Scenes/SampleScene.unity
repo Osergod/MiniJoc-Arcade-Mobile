@@ -829,7 +829,6 @@ MonoBehaviour:
   highObstacleScale: {x: 10, y: 3, z: 2}
   highObstacleHeight: 2.5
   minDistanceBetweenObstacles: 2
-  obstacleTransparency: 0.85
   obstacleColor: {r: 1, g: 1, b: 1, a: 1}
 --- !u!114 &821306653
 MonoBehaviour:
