@@ -1,128 +1,162 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public class PlayerController : MonoBehaviour
+public class PlayerController :  MonoBehaviour
 {
-    // ========== ENUM DE ESTADOS ==========
-    public enum PlayerState
-    {
-        Grounded,
-        Jumping,
-        Falling,
-        Sliding
-    }
-    
-    // ========== REFERENCIAS ==========
+    // === Enums ===
+    public enum PlayerState { Grounded, Jumping, Sliding }
+
+    // === Referencias (Inspector) ===
     [Header("References")]
     public Transform groundCheck;
     public LayerMask groundLayer;
-    
-    // ========== CONFIGURACIONES ==========
+
+    // === Configuración general ===
     [Header("Movement Settings")]
     public float moveSpeed = 10f;
     public float laneSwitchSpeed = 15f;
     public float laneWidth = 2.5f;
-    
+
     [Header("Jump Settings")]
     public float jumpForce = 12f;
     public float gravity = -30f;
     public float groundCheckRadius = 0.5f;
-    
+
     [Header("Slide Settings")]
     public float slideDuration = 1f;
     public float slideHeight = 0.5f;
-    public float originalHeight;
-    
-    [Header("Input Settings")]
-    public float swipeThreshold = 50f;
-    
+    [HideInInspector] public float originalHeight;
+
     [Header("Auto Jump Settings")]
     public bool enableAutoJump = true;
     public float autoJumpIntervalMin = 3f;
     public float autoJumpIntervalMax = 8f;
     public float nextAutoJumpTime = 0f;
-    
-    // ========== VARIABLES PÚBLICAS ==========
+
+    [Header("Input Settings")]
+    public float swipeThreshold = 50f;
+
+    [Header("Debug Settings")]
+    public bool enableDebugLogs = true;
+
+    // === Variables públicas ===
     [HideInInspector] public float verticalVelocity = 0f;
-    [HideInInspector] public bool isGrounded = true;
+    [HideInInspector] public bool isGrounded = false;
     [HideInInspector] public int currentLane = 1;
     [HideInInspector] public float targetX;
     [HideInInspector] public Rigidbody rb;
     [HideInInspector] public Animator animator;
     [HideInInspector] public CapsuleCollider playerCollider;
-    
-    // ========== ESTADOS ==========
+
+    // === Estados internos ===
     private PlayerState currentState = PlayerState.Grounded;
     private GroundedState groundedState = new GroundedState();
     private JumpingState jumpingState = new JumpingState();
-    private FallingState fallingState = new FallingState();
     private SlidingState slidingState = new SlidingState();
-    
-    // Input
+
+    // === Input ===
     private Vector2 touchStartPos;
     private bool isTouching = false;
     private bool swipeProcessed = false;
     
+    // === Control de tiempo ===
+    private float slideEndTime = 0f;
+
+    #region Unity Methods
+
     void Start()
     {
         rb = GetComponent<Rigidbody>();
         animator = GetComponent<Animator>();
         playerCollider = GetComponent<CapsuleCollider>();
-        
+
         if (playerCollider != null)
-        {
             originalHeight = playerCollider.height;
-        }
-        
+
         InitializeRigidbody();
         CalculateTargetX();
-        
+
         if (enableAutoJump)
-        {
-            nextAutoJumpTime = Time.time + Random.Range(autoJumpIntervalMin, autoJumpIntervalMax);
-        }
-        
-        // Iniciar en estado Grounded
+            ScheduleNextAutoJump();
+
         ChangeState(PlayerState.Grounded);
     }
-    
-    void InitializeRigidbody()
-    {
-        if (rb != null)
-        {
-            rb.constraints = RigidbodyConstraints.FreezePositionY | RigidbodyConstraints.FreezeRotation;
-            rb.useGravity = false;
-        }
-    }
-    
+
     void Update()
     {
-        // Ejecutar estado actual
-        ExecuteCurrentState();
+        // Verificar contacto con el suelo
+        bool groundContactDetected = CheckGroundContact();
         
+        // Depuración del estado actual
+        if (enableDebugLogs)
+            Debug.Log($"Estado: {currentState} | En suelo (Raycast): {groundContactDetected} | Velocidad Y: {verticalVelocity: F2}");
+
         // Manejar input
         HandleMobileInput();
         HandleKeyboardInput();
-        
-        // Movimiento horizontal (siempre activo)
-        MoveForward();
-        SmoothLaneSwitch();
-        
+
         // Actualizar animaciones
         UpdateAnimations();
+
+        // Ejecutar estado actual
+        ExecuteCurrentState();
     }
-    
+
     void FixedUpdate()
     {
-        // Aplicar movimiento vertical en FixedUpdate
-        if (currentState == PlayerState.Jumping || currentState == PlayerState.Falling)
+        // Verificar colisiones con el suelo
+        isGrounded = CheckGroundContact();
+
+        // Aplicar fuerza de gravedad
+        ApplyGravityForce();
+
+        // Movimientos según el estado del jugador
+        if (currentState == PlayerState. Jumping || currentState == PlayerState.Sliding)
+            ApplyVerticalVelocity();
+
+        // Movimiento constante hacia adelante y cambio de carril
+        MoveForward();
+        SmoothLaneSwitch();
+    }
+
+    void OnCollisionEnter(Collision collision)
+    {
+        if (collision.gameObject.CompareTag("Ground"))
         {
-            ApplyVerticalMovement();
+            isGrounded = true;
+            if (enableDebugLogs)
+                Debug.Log("OnCollisionEnter:  Personaje en el suelo");
         }
     }
-    
-    // ========== MÁQUINA DE ESTADOS ==========
-    
+
+    void OnCollisionStay(Collision collision)
+    {
+        if (collision.gameObject.CompareTag("Ground"))
+        {
+            isGrounded = true;
+        }
+    }
+
+    void OnCollisionExit(Collision collision)
+    {
+        if (collision.gameObject.CompareTag("Ground"))
+        {
+            isGrounded = false;
+            if (enableDebugLogs)
+                Debug.Log("OnCollisionExit: Personaje fuera del suelo");
+        }
+    }
+
+    void OnTriggerEnter(Collider other)
+    {
+        if (other.CompareTag("Coin"))
+            CollectCoin(other.gameObject);
+    }
+
+    #endregion
+
+    #region State Machine Control
+
     void ExecuteCurrentState()
     {
         switch (currentState)
@@ -134,22 +168,24 @@ public class PlayerController : MonoBehaviour
             case PlayerState.Jumping:
                 jumpingState.UpdateState(this);
                 break;
-            case PlayerState.Falling:
-                fallingState.UpdateState(this);
-                break;
             case PlayerState.Sliding:
                 slidingState.UpdateState(this);
                 break;
         }
     }
-    
+
     public void ChangeState(PlayerState newState)
     {
+        if (currentState == newState) return;
+
         ExitCurrentState();
         EnterNewState(newState);
         currentState = newState;
+
+        if (enableDebugLogs)
+            Debug.Log($"Cambio de estado a: {newState}");
     }
-    
+
     void ExitCurrentState()
     {
         switch (currentState)
@@ -160,15 +196,12 @@ public class PlayerController : MonoBehaviour
             case PlayerState.Jumping:
                 jumpingState.ExitState(this);
                 break;
-            case PlayerState.Falling:
-                fallingState.ExitState(this);
-                break;
             case PlayerState.Sliding:
                 slidingState.ExitState(this);
                 break;
         }
     }
-    
+
     void EnterNewState(PlayerState state)
     {
         switch (state)
@@ -179,29 +212,29 @@ public class PlayerController : MonoBehaviour
             case PlayerState.Jumping:
                 jumpingState.EnterState(this);
                 break;
-            case PlayerState.Falling:
-                fallingState.EnterState(this);
-                break;
             case PlayerState.Sliding:
                 slidingState.EnterState(this);
                 break;
         }
     }
-    
-    // ========== MOVIMIENTO ==========
-    
+
+    #endregion
+
+    #region Movement
+
     public void MoveForward()
     {
-        transform.Translate(Vector3.forward * moveSpeed * Time.deltaTime);
+        Vector3 forwardMovement = transform.forward * moveSpeed * Time.fixedDeltaTime;
+        rb.MovePosition(rb.position + forwardMovement);
     }
-    
+
     public void SmoothLaneSwitch()
     {
-        Vector3 currentPos = transform.position;
-        Vector3 targetPos = new Vector3(targetX, currentPos.y, currentPos.z);
-        transform.position = Vector3.Lerp(currentPos, targetPos, laneSwitchSpeed * Time.deltaTime);
+        Vector3 targetPos = new Vector3(targetX, rb.position.y, rb.position.z);
+        Vector3 smoothedPos = Vector3.Lerp(rb.position, targetPos, laneSwitchSpeed * Time.fixedDeltaTime);
+        rb.MovePosition(smoothedPos);
     }
-    
+
     public void MoveLeft()
     {
         if (currentLane > 0)
@@ -210,7 +243,7 @@ public class PlayerController : MonoBehaviour
             CalculateTargetX();
         }
     }
-    
+
     public void MoveRight()
     {
         if (currentLane < 2)
@@ -219,198 +252,212 @@ public class PlayerController : MonoBehaviour
             CalculateTargetX();
         }
     }
-    
+
     void CalculateTargetX()
     {
         targetX = (currentLane - 1) * laneWidth;
     }
-    
-    // ========== FÍSICA ==========
-    
-    public void ApplyGravityForce()
-    {
-        verticalVelocity += gravity * Time.deltaTime;
-        verticalVelocity = Mathf.Max(verticalVelocity, -20f);
-    }
-    
+
     public void ApplyVerticalVelocity()
     {
-        Vector3 movement = new Vector3(0, verticalVelocity * Time.fixedDeltaTime, 0);
-        transform.Translate(movement, Space.World);
+        Vector3 verticalMovement = Vector3.up * verticalVelocity * Time.fixedDeltaTime;
+        rb. MovePosition(rb.position + verticalMovement);
     }
-    
-    void ApplyVerticalMovement()
+
+    #endregion
+
+    #region Physics & Detection
+
+    public void ApplyGravityForce()
     {
-        ApplyVerticalVelocity();
+        if (! isGrounded)
+        {
+            verticalVelocity += gravity * Time.fixedDeltaTime;
+            verticalVelocity = Mathf.Max(verticalVelocity, -20f);
+        }
+        else
+        {
+            if (verticalVelocity < 0)
+                verticalVelocity = 0f;
+        }
     }
-    
+
+    public bool CheckGroundContact()
+    {
+        if (groundCheck == null) return false;
+        
+        // Usar Raycast en lugar de CheckSphere para mejor precisión
+        bool raycastHit = Physics.Raycast(groundCheck.position, Vector3.down, groundCheckRadius, groundLayer);
+        bool sphereHit = Physics.CheckSphere(groundCheck.position, groundCheckRadius, groundLayer);
+        
+        return raycastHit || sphereHit;
+    }
+
+    #endregion
+
+    #region Lock & Unlock Position
+
     public void LockYPosition()
     {
         if (rb != null)
         {
-            rb.constraints = RigidbodyConstraints.FreezePositionY | RigidbodyConstraints.FreezeRotation;
-            Vector3 pos = transform.position;
-            pos.y = Mathf.Round(pos.y * 100f) / 100f;
-            transform.position = pos;
+            rb.constraints = RigidbodyConstraints.FreezePositionY | RigidbodyConstraints. FreezeRotation;
         }
     }
-    
+
     public void UnlockYPosition()
     {
         if (rb != null)
         {
-            rb.constraints = RigidbodyConstraints.FreezeRotation;
+            rb. constraints = RigidbodyConstraints.FreezeRotation;
         }
     }
-    
-    // ========== INPUT ==========
-    
+
+    #endregion
+
+    #region Actions
+
+    public void Jump()
+    {
+        if (currentState == PlayerState.Grounded && isGrounded)
+        {
+            verticalVelocity = jumpForce;
+            UnlockYPosition();
+            ChangeState(PlayerState.Jumping);
+            
+            if (enableDebugLogs)
+                Debug.Log("SALTO INICIADO");
+        }
+    }
+
+    public void Slide()
+    {
+        if (currentState == PlayerState.Grounded && isGrounded)
+        {
+            LockYPosition();
+            slideEndTime = Time.time + slideDuration;
+            ChangeState(PlayerState.Sliding);
+            
+            if (enableDebugLogs)
+                Debug.Log("DESLIZAMIENTO INICIADO");
+        }
+    }
+
+    #endregion
+
+    #region Auto Jump
+
+    public void ScheduleNextAutoJump()
+    {
+        nextAutoJumpTime = Time.time + Random.Range(autoJumpIntervalMin, autoJumpIntervalMax);
+    }
+
+    void CheckAutoJump()
+    {
+        if (enableAutoJump && Time.time >= nextAutoJumpTime && currentState == PlayerState.Grounded && isGrounded)
+        {
+            Jump();
+            ScheduleNextAutoJump();
+        }
+    }
+
+    #endregion
+
+    #region Input Handling
+
     void HandleMobileInput()
     {
         if (Touchscreen.current == null) return;
-        
-        if (Touchscreen.current.primaryTouch.press.wasPressedThisFrame)
+
+        if (Touchscreen.current.primaryTouch.press. wasPressedThisFrame)
         {
-            touchStartPos = Touchscreen.current.primaryTouch.position.ReadValue();
+            touchStartPos = Touchscreen.current.primaryTouch.position. ReadValue();
             isTouching = true;
             swipeProcessed = false;
         }
-        
+
         if (isTouching && Touchscreen.current.primaryTouch.press.isPressed)
         {
-            Vector2 currentPos = Touchscreen.current.primaryTouch.position.ReadValue();
+            Vector2 currentPos = Touchscreen.current. primaryTouch.position.ReadValue();
             float deltaX = currentPos.x - touchStartPos.x;
-            
-            if (!swipeProcessed && Mathf.Abs(deltaX) > swipeThreshold)
+
+            if (! swipeProcessed && Mathf.Abs(deltaX) > swipeThreshold)
             {
                 if (deltaX > 0) MoveRight();
                 else MoveLeft();
-                
+
                 swipeProcessed = true;
                 touchStartPos = currentPos;
             }
         }
-        
-        if (isTouching && Touchscreen.current.primaryTouch.press.wasReleasedThisFrame)
+
+        if (isTouching && Touchscreen. current.primaryTouch.press.wasReleasedThisFrame)
         {
-            Vector2 endPos = Touchscreen.current.primaryTouch.position.ReadValue();
+            Vector2 endPos = Touchscreen.current. primaryTouch.position.ReadValue();
             Vector2 delta = endPos - touchStartPos;
-            
-            if (!swipeProcessed && delta.magnitude < swipeThreshold)
+
+            if (! swipeProcessed && delta.magnitude < swipeThreshold)
             {
                 Jump();
             }
-            else if (!swipeProcessed && Mathf.Abs(delta.y) > swipeThreshold)
+            else if (! swipeProcessed && Mathf.Abs(delta. y) > swipeThreshold)
             {
                 if (delta.y > 0) Jump();
                 else Slide();
             }
-            
+
             isTouching = false;
             swipeProcessed = false;
         }
     }
-    
+
     void HandleKeyboardInput()
     {
-        if (Keyboard.current.leftArrowKey.wasPressedThisFrame)
-        {
-            MoveLeft();
-        }
-        
-        if (Keyboard.current.rightArrowKey.wasPressedThisFrame)
-        {
-            MoveRight();
-        }
-        
-        if (Keyboard.current.spaceKey.wasPressedThisFrame)
-        {
-            Jump();
-        }
-        
-        if (Keyboard.current.downArrowKey.wasPressedThisFrame)
-        {
-            Slide();
-        }
+        if (Keyboard.current. leftArrowKey.wasPressedThisFrame) MoveLeft();
+        if (Keyboard.current.rightArrowKey.wasPressedThisFrame) MoveRight();
+        if (Keyboard.current.spaceKey.wasPressedThisFrame) Jump();
+        if (Keyboard.current.downArrowKey.wasPressedThisFrame) Slide();
     }
-    
-    // ========== ACCIONES ==========
-    
-    public void Jump()
+
+    #endregion
+
+    #region Animations
+
+    void UpdateAnimations()
     {
-        if (currentState == PlayerState.Grounded)
-        {
-            ChangeState(PlayerState.Jumping);
-        }
+        if (animator == null) return;
+        animator.SetBool("IsGrounded", isGrounded);
+        animator.SetBool("IsJumping", currentState == PlayerState.Jumping);
+        animator.SetBool("IsSliding", currentState == PlayerState.Sliding);
+        animator.SetFloat("VerticalVelocity", verticalVelocity);
     }
-    
-    public void Slide()
-    {
-        if (currentState == PlayerState.Grounded)
-        {
-            ChangeState(PlayerState.Sliding);
-        }
-    }
-    
-    void CheckAutoJump()
-    {
-        if (enableAutoJump && Time.time >= nextAutoJumpTime)
-        {
-            if (currentState == PlayerState.Grounded)
-            {
-                Jump();
-            }
-            nextAutoJumpTime = Time.time + Random.Range(autoJumpIntervalMin, autoJumpIntervalMax);
-        }
-    }
-    
-    // ========== COLISIONES ==========
-    
-    void OnCollisionEnter(Collision collision)
-    {
-        if (collision.gameObject.CompareTag("Ground"))
-        {
-            isGrounded = true;
-        }
-    }
-    
-    void OnTriggerEnter(Collider other)
-    {
-        if (other.CompareTag("Coin"))
-        {
-            CollectCoin(other.gameObject);
-        }
-    }
-    
+
+    #endregion
+
+    #region Utilities
+
     void CollectCoin(GameObject coin)
     {
         coin.SetActive(false);
         Debug.Log("Moneda recolectada!");
     }
-    
-    // ========== UTILIDADES ==========
-    
-    public bool CheckGroundContact()
+
+    void InitializeRigidbody()
     {
-        if (groundCheck == null) return true;
-        bool grounded = Physics.CheckSphere(groundCheck.position, groundCheckRadius, groundLayer);
-        return grounded;
-    }
-    
-    public void UpdateAnimations()
-    {
-        if (animator != null)
+        if (rb != null)
         {
-            animator.SetBool("IsGrounded", isGrounded);
-            animator.SetBool("IsJumping", currentState == PlayerState.Jumping);
-            animator.SetBool("IsFalling", currentState == PlayerState.Falling);
-            animator.SetBool("IsSliding", currentState == PlayerState.Sliding);
-            animator.SetFloat("VerticalVelocity", verticalVelocity);
+            rb.mass = 1f;
+            rb.interpolation = RigidbodyInterpolation.Interpolate;
+            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            rb.constraints = RigidbodyConstraints.FreezeRotation;
+            rb.useGravity = false;
         }
     }
-    
-    // ========== DEBUG ==========
-    // Esto solo en Editor
+
+    #endregion
+
+    #region Gizmos
+
     #if UNITY_EDITOR
     void OnDrawGizmosSelected()
     {
@@ -418,7 +465,10 @@ public class PlayerController : MonoBehaviour
         {
             Gizmos.color = isGrounded ? Color.green : Color.red;
             Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
+            Gizmos.DrawRay(groundCheck.position, Vector3.down * groundCheckRadius);
         }
     }
     #endif
+
+    #endregion
 }
