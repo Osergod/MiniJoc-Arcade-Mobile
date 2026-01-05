@@ -1,7 +1,8 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine. SceneManagement;
 
-public class PlayerController :  MonoBehaviour
+public class PlayerController :   MonoBehaviour
 {
     // === Enums ===
     public enum PlayerState { Grounded, Jumping, Sliding }
@@ -10,6 +11,9 @@ public class PlayerController :  MonoBehaviour
     [Header("References")]
     public Transform groundCheck;
     public LayerMask groundLayer;
+
+    [Header("Scene Management")]
+    public string gameOverSceneName = "GameOver"; // Nombre de la escena a cargar
 
     // === Configuración general ===
     [Header("Movement Settings")]
@@ -111,7 +115,7 @@ public class PlayerController :  MonoBehaviour
         ApplyGravityForce();
 
         // Movimientos según el estado del jugador
-        if (currentState == PlayerState. Jumping || currentState == PlayerState.Sliding)
+        if (currentState == PlayerState.  Jumping || currentState == PlayerState.Sliding)
             ApplyVerticalVelocity();
 
         // Movimiento constante hacia adelante y cambio de carril
@@ -125,7 +129,13 @@ public class PlayerController :  MonoBehaviour
         {
             isGrounded = true;
             if (enableDebugLogs)
-                Debug.Log("OnCollisionEnter:  Personaje en el suelo");
+                Debug.Log("OnCollisionEnter: Personaje en el suelo");
+        }
+
+        // Detectar colisión con obstáculos
+        if (collision.gameObject.CompareTag("Obstacle"))
+        {
+            OnObstacleHit(collision.gameObject);
         }
     }
 
@@ -151,6 +161,12 @@ public class PlayerController :  MonoBehaviour
     {
         if (other.CompareTag("Coin"))
             CollectCoin(other.gameObject);
+
+        // También detectar obstáculos con triggers
+        if (other.CompareTag("Obstacle"))
+        {
+            OnObstacleHit(other.gameObject);
+        }
     }
 
     #endregion
@@ -161,7 +177,7 @@ public class PlayerController :  MonoBehaviour
     {
         switch (currentState)
         {
-            case PlayerState.Grounded:
+            case PlayerState. Grounded:
                 groundedState.UpdateState(this);
                 CheckAutoJump();
                 break;
@@ -225,7 +241,7 @@ public class PlayerController :  MonoBehaviour
     public void MoveForward()
     {
         Vector3 forwardMovement = transform.forward * moveSpeed * Time.fixedDeltaTime;
-        rb.MovePosition(rb.position + forwardMovement);
+        rb.MovePosition(rb. position + forwardMovement);
     }
 
     public void SmoothLaneSwitch()
@@ -261,7 +277,7 @@ public class PlayerController :  MonoBehaviour
     public void ApplyVerticalVelocity()
     {
         Vector3 verticalMovement = Vector3.up * verticalVelocity * Time.fixedDeltaTime;
-        rb. MovePosition(rb.position + verticalMovement);
+        rb.  MovePosition(rb.position + verticalMovement);
     }
 
     #endregion
@@ -270,7 +286,7 @@ public class PlayerController :  MonoBehaviour
 
     public void ApplyGravityForce()
     {
-        if (! isGrounded)
+        if (!  isGrounded)
         {
             verticalVelocity += gravity * Time.fixedDeltaTime;
             verticalVelocity = Mathf.Max(verticalVelocity, -20f);
@@ -301,7 +317,7 @@ public class PlayerController :  MonoBehaviour
     {
         if (rb != null)
         {
-            rb.constraints = RigidbodyConstraints.FreezePositionY | RigidbodyConstraints. FreezeRotation;
+            rb.constraints = RigidbodyConstraints.FreezePositionY | RigidbodyConstraints.  FreezeRotation;
         }
     }
 
@@ -309,7 +325,7 @@ public class PlayerController :  MonoBehaviour
     {
         if (rb != null)
         {
-            rb. constraints = RigidbodyConstraints.FreezeRotation;
+            rb.  constraints = RigidbodyConstraints.FreezeRotation;
         }
     }
 
@@ -363,13 +379,51 @@ public class PlayerController :  MonoBehaviour
 
     #endregion
 
+    #region Obstacle Handling
+
+    /// <summary>
+    /// Se llama cuando el jugador colisiona con un obstáculo. 
+    /// Carga la escena configurada en el Inspector.
+    /// </summary>
+    private void OnObstacleHit(GameObject obstacle)
+    {
+        if (enableDebugLogs)
+            Debug.Log($"💥 ¡COLISIÓN CON OBSTÁCULO:  {obstacle.name}!");
+
+        // Pausar el juego brevemente (opcional)
+        Time.timeScale = 0.1f;
+
+        // Esperar un pequeño momento y luego cargar la escena
+        StartCoroutine(LoadGameOverScene());
+    }
+
+    /// <summary>
+    /// Corrutina para cargar la escena de Game Over con un pequeño retraso.
+    /// </summary>
+    private System.Collections.IEnumerator LoadGameOverScene()
+    {
+        yield return new WaitForSecondsRealtime(0.5f); // Espera 0.5 segundos (en tiempo real)
+        
+        Time.timeScale = 1f; // Restaurar el tiempo normal
+
+        if (string.IsNullOrEmpty(gameOverSceneName))
+        {
+            Debug.LogError("ERROR: No se ha asignado el nombre de la escena 'GameOver'");
+        }
+
+        Debug.Log($"Cargando escena:  {gameOverSceneName}");
+        SceneManager.LoadScene(gameOverSceneName);
+    }
+
+    #endregion
+
     #region Input Handling
 
     void HandleMobileInput()
     {
         if (Touchscreen.current == null) return;
 
-        if (Touchscreen.current.primaryTouch.press. wasPressedThisFrame)
+        if (Touchscreen. current.primaryTouch.press.  wasPressedThisFrame)
         {
             touchStartPos = Touchscreen.current.primaryTouch.position. ReadValue();
             isTouching = true;
@@ -378,7 +432,7 @@ public class PlayerController :  MonoBehaviour
 
         if (isTouching && Touchscreen.current.primaryTouch.press.isPressed)
         {
-            Vector2 currentPos = Touchscreen.current. primaryTouch.position.ReadValue();
+            Vector2 currentPos = Touchscreen.current. primaryTouch.position. ReadValue();
             float deltaX = currentPos.x - touchStartPos.x;
 
             if (! swipeProcessed && Mathf.Abs(deltaX) > swipeThreshold)
@@ -391,7 +445,7 @@ public class PlayerController :  MonoBehaviour
             }
         }
 
-        if (isTouching && Touchscreen. current.primaryTouch.press.wasReleasedThisFrame)
+        if (isTouching && Touchscreen. current. primaryTouch.press.wasReleasedThisFrame)
         {
             Vector2 endPos = Touchscreen.current. primaryTouch.position.ReadValue();
             Vector2 delta = endPos - touchStartPos;
@@ -400,7 +454,7 @@ public class PlayerController :  MonoBehaviour
             {
                 Jump();
             }
-            else if (! swipeProcessed && Mathf.Abs(delta. y) > swipeThreshold)
+            else if (! swipeProcessed && Mathf.Abs(delta.  y) > swipeThreshold)
             {
                 if (delta.y > 0) Jump();
                 else Slide();
@@ -413,9 +467,9 @@ public class PlayerController :  MonoBehaviour
 
     void HandleKeyboardInput()
     {
-        if (Keyboard.current. leftArrowKey.wasPressedThisFrame) MoveLeft();
-        if (Keyboard.current.rightArrowKey.wasPressedThisFrame) MoveRight();
-        if (Keyboard.current.spaceKey.wasPressedThisFrame) Jump();
+        if (Keyboard.current.  leftArrowKey.wasPressedThisFrame) MoveLeft();
+        if (Keyboard. current. rightArrowKey.wasPressedThisFrame) MoveRight();
+        if (Keyboard. current.spaceKey.wasPressedThisFrame) Jump();
         if (Keyboard.current.downArrowKey.wasPressedThisFrame) Slide();
     }
 
@@ -464,7 +518,7 @@ public class PlayerController :  MonoBehaviour
         if (groundCheck != null)
         {
             Gizmos.color = isGrounded ? Color.green : Color.red;
-            Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
+            Gizmos. DrawWireSphere(groundCheck.position, groundCheckRadius);
             Gizmos.DrawRay(groundCheck.position, Vector3.down * groundCheckRadius);
         }
     }

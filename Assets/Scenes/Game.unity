@@ -1039,6 +1039,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 6914480407653921074, guid: 2c9eb1e77add8bb40930bfc110001690, type: 3}
+      propertyPath: gameOverSceneName
+      value: MainMenu
+      objectReference: {fileID: 0}
     - target: {fileID: 7942142389572939752, guid: 2c9eb1e77add8bb40930bfc110001690, type: 3}
       propertyPath: m_Camera
       value: 
