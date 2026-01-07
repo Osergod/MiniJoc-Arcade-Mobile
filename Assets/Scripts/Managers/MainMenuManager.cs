@@ -37,4 +37,8 @@ public class MainMenuManager : MonoBehaviour
         Application.Quit();
     }
 
+    /*public void TogleBackgroundMusic()
+    {
+        GeneralManager.Instance.ToggleMusica();
+    }*/
 }
