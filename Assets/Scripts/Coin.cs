@@ -85,6 +85,9 @@ public class Coin : MonoBehaviour
         isCollected = true;
         gameObject.SetActive(false);
         NotifyCoinCollection();
+
+        AudioManager am = FindObjectOfType<AudioManager>();
+        am.SoundCoin();
     }
 
     void NotifyCoinCollection()
