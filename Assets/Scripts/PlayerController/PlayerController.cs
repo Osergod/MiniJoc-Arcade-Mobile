@@ -49,7 +49,7 @@ public class PlayerController :   MonoBehaviour
     [HideInInspector] public int currentLane = 1;
     [HideInInspector] public float targetX;
     [HideInInspector] public Rigidbody rb;
-    [HideInInspector] public Animator animator;
+    public Animator animator;
     [HideInInspector] public CapsuleCollider playerCollider;
 
     // === Estados internos ===
@@ -71,7 +71,6 @@ public class PlayerController :   MonoBehaviour
     void Start()
     {
         rb = GetComponent<Rigidbody>();
-        animator = GetComponent<Animator>();
         playerCollider = GetComponent<CapsuleCollider>();
 
         if (playerCollider != null)

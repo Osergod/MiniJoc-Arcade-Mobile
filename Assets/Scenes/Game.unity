@@ -256,6 +256,11 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 74038392}
   m_CullTransparentMesh: 1
+--- !u!4 &346950835 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 2707371170802811776, guid: 2c9eb1e77add8bb40930bfc110001690, type: 3}
+  m_PrefabInstance: {fileID: 8195790220087220454}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &548936919
 GameObject:
   m_ObjectHideFlags: 0
@@ -388,7 +393,7 @@ MonoBehaviour:
   m_Priority: 10
   m_StandbyUpdate: 2
   m_LookAt: {fileID: 0}
-  m_Follow: {fileID: 2063562132}
+  m_Follow: {fileID: 0}
   m_Lens:
     FieldOfView: 60
     OrthographicSize: 10
@@ -664,7 +669,7 @@ MonoBehaviour:
   groundPrefab: {fileID: 1280136859607710307, guid: a3d0687e243d9494eb3618ff28fa80be, type: 3}
   coinPrefab: {fileID: 7409374402127319443, guid: de2313dd64f462648b702fee2aa875bc, type: 3}
   obstacleBasePrefab: {fileID: 481256038365708867, guid: 7eaa0bb75fbf5284088fd3a263386d13, type: 3}
-  player: {fileID: 2063562132}
+  player: {fileID: 346950835}
   groundLength: 10
   segmentsAhead: 8
   lanePositions:
@@ -1194,11 +1199,6 @@ AudioSource:
   m_CorrespondingSourceObject: {fileID: 2153937037628497997, guid: 9c9a8e5109f89104ab5079f380535c91, type: 3}
   m_PrefabInstance: {fileID: 1578805792}
   m_PrefabAsset: {fileID: 0}
---- !u!4 &2063562132 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 9150591151904249068, guid: 2c9eb1e77add8bb40930bfc110001690, type: 3}
-  m_PrefabInstance: {fileID: 8195790220087220454}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &8195790220087220454
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1247,6 +1247,18 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 3771396430360153216, guid: 2c9eb1e77add8bb40930bfc110001690, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4291840996366113519, guid: 2c9eb1e77add8bb40930bfc110001690, type: 3}
+      propertyPath: m_Controller
+      value: 
+      objectReference: {fileID: 9100000, guid: 4ff6ef7486f8836429bb494e4c8707a7, type: 2}
+    - target: {fileID: 6914480407653921074, guid: 2c9eb1e77add8bb40930bfc110001690, type: 3}
+      propertyPath: slideDuration
+      value: 0.7
+      objectReference: {fileID: 0}
     - target: {fileID: 6914480407653921074, guid: 2c9eb1e77add8bb40930bfc110001690, type: 3}
       propertyPath: gameOverSceneName
       value: MainMenu
@@ -1259,12 +1271,18 @@ PrefabInstance:
       propertyPath: m_UIInputModule
       value: 
       objectReference: {fileID: 584515914}
+    - target: {fileID: 8482176435977817686, guid: 2c9eb1e77add8bb40930bfc110001690, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 8944163869776575650, guid: 2c9eb1e77add8bb40930bfc110001690, type: 3}
       propertyPath: m_Name
       value: Player
       objectReference: {fileID: 0}
     m_RemovedComponents: []
-    m_RemovedGameObjects: []
+    m_RemovedGameObjects:
+    - {fileID: 3771396430360153216, guid: 2c9eb1e77add8bb40930bfc110001690, type: 3}
+    - {fileID: 8482176435977817686, guid: 2c9eb1e77add8bb40930bfc110001690, type: 3}
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 2c9eb1e77add8bb40930bfc110001690, type: 3}

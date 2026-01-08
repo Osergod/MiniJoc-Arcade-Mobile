@@ -16,7 +16,7 @@ public class SlidingState : IPlayerState
 
         Debug.Log("DESLIZAMIENTO INICIADO");
 
-        if (player. animator != null)
+        if (player.animator != null)
         {
             player.animator.SetTrigger("Slide");
             player.animator. SetBool("IsSliding", true);
