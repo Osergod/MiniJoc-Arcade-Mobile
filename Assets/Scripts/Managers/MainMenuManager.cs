@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
+using TMPro;
 
 public class MainMenuManager : MonoBehaviour
 {
@@ -12,6 +13,9 @@ public class MainMenuManager : MonoBehaviour
     public Slider sliderVolumenSFX;
     public Toggle toggleMusica;
     public Toggle toggleSFX;
+
+    [Header("Tienda")]
+    public TMP_Text numCoins;
     
     void Start()
     {
@@ -74,13 +78,14 @@ public class MainMenuManager : MonoBehaviour
         Application.Quit();
     }
     
-    // Métodos para controles de audio
+    // ========== MÉTODOS PARA CONTROLES DE AUDIO ==========
+    
     public void CambiarVolumenMusica(float volumen)
     {
         if (GeneralManager.Instance != null)
         {
             GeneralManager.Instance.volumenMusica = volumen;
-            GeneralManager.Instance.AplicarConfigAudio();
+            GeneralManager.Instance.AplicarConfigAudio(); // Esto ya guarda automáticamente
         }
     }
     
@@ -89,7 +94,7 @@ public class MainMenuManager : MonoBehaviour
         if (GeneralManager.Instance != null)
         {
             GeneralManager.Instance.volumenSFX = volumen;
-            GeneralManager.Instance.AplicarConfigAudio();
+            GeneralManager.Instance.AplicarConfigAudio(); // Esto ya guarda automáticamente
         }
     }
     
@@ -98,7 +103,23 @@ public class MainMenuManager : MonoBehaviour
         if (GeneralManager.Instance != null)
         {
             GeneralManager.Instance.musicaActiva = activado;
-            GeneralManager.Instance.AplicarConfigAudio();
+        
+            // Aplicar cambio de estado play/pause
+            if (GeneralManager.Instance.musicaActual != null)
+            {
+                if (activado)
+                {
+                    if (!GeneralManager.Instance.musicaActual.isPlaying)
+                        GeneralManager.Instance.musicaActual.Play();
+                }
+                else
+                {
+                    GeneralManager.Instance.musicaActual.Pause();
+                }
+            }
+        
+            // Guardar cambios
+            GeneralManager.Instance.GuardarCambios();
         }
     }
     
@@ -107,7 +128,7 @@ public class MainMenuManager : MonoBehaviour
         if (GeneralManager.Instance != null)
         {
             GeneralManager.Instance.sfxActivados = activado;
-            GeneralManager.Instance.AplicarConfigAudio();
+            GeneralManager.Instance.AplicarConfigAudio(); // Esto ya guarda automáticamente
         }
     }
 }

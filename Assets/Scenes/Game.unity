@@ -623,8 +623,8 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 821306651}
-  - component: {fileID: 821306653}
   - component: {fileID: 821306654}
+  - component: {fileID: 821306653}
   - component: {fileID: 821306652}
   m_Layer: 0
   m_Name: Managers
@@ -721,6 +721,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   coinCountText: {fileID: 74038394}
+  totalCoins: 0
 --- !u!1 &941798368
 GameObject:
   m_ObjectHideFlags: 0

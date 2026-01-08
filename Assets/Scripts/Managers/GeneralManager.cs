@@ -22,6 +22,9 @@ public class GeneralManager : MonoBehaviour
             Instance = this;
             DontDestroyOnLoad(gameObject);
             SceneManager.sceneLoaded += OnEscenaCargada;
+            
+            // CARGAR CONFIGURACIÓN GUARDADA
+            CargarConfiguracion();
         }
         else
         {
@@ -29,50 +32,101 @@ public class GeneralManager : MonoBehaviour
         }
     }
     
+    void OnDestroy()
+    {
+        GuardarConfiguracion();
+    }
+    
+    void OnApplicationQuit()
+    {
+        GuardarConfiguracion();
+    }
+    
     void OnEscenaCargada(Scene escena, LoadSceneMode modo)
     {
         ConfigurarNuevoAudioManager();
     }
     
+    // ========== GUARDAR Y CARGAR ==========
+    
+    void GuardarConfiguracion()
+    {
+        PlayerPrefs.SetInt("MusicaActiva", musicaActiva ? 1 : 0);
+        PlayerPrefs.SetInt("SFXActivados", sfxActivados ? 1 : 0);
+        PlayerPrefs.SetFloat("VolumenMusica", volumenMusica);
+        PlayerPrefs.SetFloat("VolumenSFX", volumenSFX);
+        
+        PlayerPrefs.Save();
+    }
+    
+    void CargarConfiguracion()
+    {
+        musicaActiva = PlayerPrefs.GetInt("MusicaActiva", 1) == 1;
+        sfxActivados = PlayerPrefs.GetInt("SFXActivados", 1) == 1;
+        volumenMusica = PlayerPrefs.GetFloat("VolumenMusica", 0.7f);
+        volumenSFX = PlayerPrefs.GetFloat("VolumenSFX", 0.8f);
+    }
+    
+    public void GuardarCambios()
+    {
+        GuardarConfiguracion();
+    }
+    
+    public void ResetearAjustes()
+    {
+        musicaActiva = true;
+        sfxActivados = true;
+        volumenMusica = 0.7f;
+        volumenSFX = 0.8f;
+        
+        AplicarConfigAudio();
+        GuardarConfiguracion();
+    }
+    
+    // ========== CONFIGURACIÓN DE AUDIO ==========
+    
     void ConfigurarNuevoAudioManager()
     {
-        // Buscar AudioManager en la escena nueva
         AudioManager nuevoAM = FindObjectOfType<AudioManager>();
         
         if (nuevoAM != null)
         {
             audioManagerActual = nuevoAM;
             
-            // Configurar la música de fondo
             if (nuevoAM.BackgroundMusic != null)
             {
                 musicaActual = nuevoAM.BackgroundMusic;
+                // Solo aplicar configuración, NO tocar Play/Pause aquí
                 musicaActual.volume = volumenMusica;
-                
-                if (musicaActiva && !musicaActual.isPlaying)
+            }
+            
+            // Configurar música según estado guardado
+            if (musicaActual != null)
+            {
+                if (musicaActiva)
                 {
-                    musicaActual.Play();
+                    if (!musicaActual.isPlaying)
+                    {
+                        musicaActual.Play(); // Solo play si no está sonando
+                    }
                 }
-                else if (!musicaActiva && musicaActual.isPlaying)
+                else
                 {
                     musicaActual.Pause();
                 }
             }
             
-            // Aplicar configuración de SFX a todos los efectos
+            // Configurar SFX
             AplicarConfigSFX();
         }
     }
     
-    // Método que aplica configuración SOLO a efectos de sonido
     public void AplicarConfigSFX()
     {
-        // Buscar TODOS los AudioSource en la escena
         AudioSource[] todosLosAudioSources = FindObjectsOfType<AudioSource>();
         
         foreach (AudioSource audioSource in todosLosAudioSources)
         {
-            // Aplicar solo a efectos de sonido (NO a la música de fondo)
             if (audioSource != musicaActual && audioSource != null)
             {
                 audioSource.volume = volumenSFX;
@@ -81,26 +135,20 @@ public class GeneralManager : MonoBehaviour
         }
     }
     
-    // Método que aplica TODA la configuración de audio
     public void AplicarConfigAudio()
     {
-        // 1. Configurar música
+        // 1. Solo cambiar volumen de música (NO estado play/pause)
         if (musicaActual != null)
         {
             musicaActual.volume = volumenMusica;
-            
-            if (musicaActiva && !musicaActual.isPlaying)
-            {
-                musicaActual.UnPause();
-            }
-            else if (!musicaActiva && musicaActual.isPlaying)
-            {
-                musicaActual.Pause();
-            }
+            // NO tocar Play/Pause aquí, solo volumen
         }
         
-        // 2. Configurar TODOS los efectos de sonido
+        // 2. Configurar SFX
         AplicarConfigSFX();
+        
+        // 3. Guardar cambios
+        GuardarConfiguracion();
     }
     
     public void ToggleMusica()
@@ -121,5 +169,7 @@ public class GeneralManager : MonoBehaviour
                 musicaActual.Pause();
             }
         }
+        
+        GuardarConfiguracion();
     }
 }
