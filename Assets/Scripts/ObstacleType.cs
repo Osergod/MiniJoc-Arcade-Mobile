@@ -10,20 +10,26 @@ public class ObstacleType : MonoBehaviour
     }
     
     public Type obstacleType = Type.Wide;
+    Renderer r;
     
     void Start()
     {
-        // Solo para identificar el tipo, no necesita color
         switch (obstacleType)
         {
             case Type.Wide:
                 gameObject.name = "WideObstacle";
+                r = GetComponent<Renderer>();
+                r.material.mainTextureScale = new Vector2(1f, 1/6f);
                 break;
             case Type.Long:
                 gameObject.name = "LongObstacle";
+                r = GetComponent<Renderer>();
+                r.material.mainTextureScale = new Vector2(1/2f, 1/10f);
                 break;
             case Type.High:
                 gameObject.name = "HighObstacle";
+                r = GetComponent<Renderer>();
+                r.material.mainTextureScale = new Vector2(1f, 1/6f);
                 break;
         }
         
@@ -31,16 +37,10 @@ public class ObstacleType : MonoBehaviour
         BoxCollider collider = GetComponent<BoxCollider>();
         if (collider == null)
             collider = gameObject.AddComponent<BoxCollider>();
-        
-        // High obstacle es trigger para poder deslizarse
-        collider.isTrigger = (obstacleType == Type.High);
     }
     
     void OnDrawGizmosSelected()
     {
-        // Gizmo en color granate para todos
-        Gizmos.color = new Color(0.5f, 0f, 0f, 0.3f);
-        
         Collider collider = GetComponent<Collider>();
         if (collider != null)
         {

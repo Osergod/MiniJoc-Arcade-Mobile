@@ -21,17 +21,16 @@ public class GroundGeneratorFixed : MonoBehaviour
     public float noObstacleStartTime = 5f;
     
     [Header("Obstacle Dimensions")]
-    public Vector3 wideObstacleScale = new Vector3(7.5f, 1f, 2f);
-    public Vector3 longObstacleScale = new Vector3(2f, 1f, 4f);
+    public Vector3 wideObstacleScale = new Vector3(7.5f, 3f, 2f);
+    public Vector3 longObstacleScale = new Vector3(2f, 3f, 4f);
     public Vector3 highObstacleScale = new Vector3(7.5f, 3f, 2f);
     
     [Header("Obstacle Placement")]
-    public float highObstacleHeight = 2f;
+    public float highObstacleHeight = 100f;
     public float minDistanceBetweenObstacles = 0.5f;
     
     [Header("Visual Settings")]
-    [Range(0f, 1f)] public float obstacleTransparency = 0.85f;
-    public Color obstacleColor = new Color(0.5f, 0f, 0f, 1f); // COLOR GRANATE para todos
+    public Color obstacleColor = Color.white;
     
     private float nextZ = 0f;
     private Queue<GameObject> activeSegments = new Queue<GameObject>();
@@ -323,7 +322,6 @@ public class GroundGeneratorFixed : MonoBehaviour
             
             // Color granate con transparencia
             Color marbleColor = obstacleColor;
-            marbleColor.a = obstacleTransparency;
             material.color = marbleColor;
             
             // Configurar para transparencia

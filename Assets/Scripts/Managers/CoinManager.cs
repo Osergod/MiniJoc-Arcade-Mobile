@@ -9,7 +9,7 @@ public class CoinManager : MonoBehaviour
     [Header("UI")]
     public TMP_Text coinCountText;
     
-    private int totalCoins = 0;
+    public int totalCoins = 0;
     
     void Awake()
     {
@@ -35,6 +35,7 @@ public class CoinManager : MonoBehaviour
     {
         totalCoins += amount;
         PlayerPrefs.SetInt("TotalCoins", totalCoins);
+        PlayerPrefs.Save();
         UpdateUI();
         
         // Efecto opcional

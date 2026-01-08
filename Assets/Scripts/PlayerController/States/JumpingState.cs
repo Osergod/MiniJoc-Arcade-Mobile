@@ -1,50 +1,51 @@
 using UnityEngine;
 
 [System.Serializable]
-public class JumpingState : IPlayerState
+public class JumpingState :  IPlayerState
 {
+    private bool isAscending = true;
+
     public void EnterState(PlayerController player)
     {
         player.verticalVelocity = player.jumpForce;
         player.UnlockYPosition();
-        
+        isAscending = true;
+
         if (player.animator != null)
         {
             player.animator.SetTrigger("Jump");
             player.animator.SetBool("IsJumping", true);
-            player.animator.SetBool("IsGrounded", false);
+            player. animator.SetBool("IsGrounded", false);
         }
     }
-    
+
     public void UpdateState(PlayerController player)
     {
-        player.ApplyGravityForce();
-        
-        if (player.verticalVelocity < 0)
+        // Detectar cambio de fase (de ascenso a descenso)
+        if (isAscending && player.verticalVelocity <= 0)
         {
-            player.ChangeState(PlayerController.PlayerState.Falling);
+            isAscending = false;
+        }
+
+        // Verificar si el jugador ha llegado al suelo
+        if (! isAscending && player.isGrounded && player.verticalVelocity <= 0)
+        {
+            player.ChangeState(PlayerController.PlayerState.Grounded);
             return;
         }
-        
-        player.MoveForward();
-        player.SmoothLaneSwitch();
-        
-        if (player.animator != null)
-        {
-            player.animator.SetFloat("VerticalVelocity", player.verticalVelocity);
-        }
     }
-    
+
     public void FixedUpdateState(PlayerController player)
     {
-        player.ApplyVerticalVelocity();
     }
-    
+
     public void ExitState(PlayerController player)
     {
         if (player.animator != null)
         {
-            player.animator.SetBool("IsJumping", false);
+            player.animator. SetBool("IsJumping", false);
         }
+
+        isAscending = true;
     }
 }
