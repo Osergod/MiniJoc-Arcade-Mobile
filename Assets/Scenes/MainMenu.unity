@@ -170,12 +170,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0cd44c1031e13a943bb63640046fad76, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_UiScaleMode: 0
+  m_UiScaleMode: 1
   m_ReferencePixelsPerUnit: 100
   m_ScaleFactor: 1
-  m_ReferenceResolution: {x: 800, y: 600}
+  m_ReferenceResolution: {x: 1080, y: 1920}
   m_ScreenMatchMode: 0
-  m_MatchWidthOrHeight: 0
+  m_MatchWidthOrHeight: 0.5
   m_PhysicalUnit: 3
   m_FallbackScreenDPI: 96
   m_DefaultSpriteDPI: 96
@@ -753,6 +753,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: ShopPanel
       objectReference: {fileID: 0}
+    - target: {fileID: 663107627269586933, guid: fa2dce89235816745a9bb8dd182be5af, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 4273485600336508145, guid: fa2dce89235816745a9bb8dd182be5af, type: 3}
       propertyPath: m_Pivot.x
       value: 0.5
@@ -909,6 +913,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: MainMenuPanel
       objectReference: {fileID: 0}
+    - target: {fileID: 1633512940819056884, guid: 1c92bbbacedc4d64aa85b8a87b002ab3, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 2357790389562719641, guid: 1c92bbbacedc4d64aa85b8a87b002ab3, type: 3}
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[0].m_Target
       value: 
@@ -927,27 +935,27 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2723727501858220592, guid: 1c92bbbacedc4d64aa85b8a87b002ab3, type: 3}
       propertyPath: m_AnchorMax.x
-      value: 1
+      value: 0.5
       objectReference: {fileID: 0}
     - target: {fileID: 2723727501858220592, guid: 1c92bbbacedc4d64aa85b8a87b002ab3, type: 3}
       propertyPath: m_AnchorMax.y
-      value: 1
+      value: 0.5
       objectReference: {fileID: 0}
     - target: {fileID: 2723727501858220592, guid: 1c92bbbacedc4d64aa85b8a87b002ab3, type: 3}
       propertyPath: m_AnchorMin.x
-      value: 0
+      value: 0.5
       objectReference: {fileID: 0}
     - target: {fileID: 2723727501858220592, guid: 1c92bbbacedc4d64aa85b8a87b002ab3, type: 3}
       propertyPath: m_AnchorMin.y
-      value: 0
+      value: 0.5
       objectReference: {fileID: 0}
     - target: {fileID: 2723727501858220592, guid: 1c92bbbacedc4d64aa85b8a87b002ab3, type: 3}
       propertyPath: m_SizeDelta.x
-      value: 0
+      value: 720
       objectReference: {fileID: 0}
     - target: {fileID: 2723727501858220592, guid: 1c92bbbacedc4d64aa85b8a87b002ab3, type: 3}
       propertyPath: m_SizeDelta.y
-      value: 0
+      value: 1600
       objectReference: {fileID: 0}
     - target: {fileID: 2723727501858220592, guid: 1c92bbbacedc4d64aa85b8a87b002ab3, type: 3}
       propertyPath: m_LocalPosition.x
@@ -1034,6 +1042,14 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 70652227}
     m_Modifications:
+    - target: {fileID: 1132302853834527809, guid: bde6df1ef59490e4eb7af316f8a24c35, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1719908384832465142, guid: bde6df1ef59490e4eb7af316f8a24c35, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 1996010198563742709, guid: bde6df1ef59490e4eb7af316f8a24c35, type: 3}
       propertyPath: m_Pivot.x
       value: 0.5
@@ -1130,9 +1146,21 @@ PrefabInstance:
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[0].m_Arguments.m_ObjectArgument
       value: 
       objectReference: {fileID: 1772277363}
+    - target: {fileID: 4113029564586274345, guid: bde6df1ef59490e4eb7af316f8a24c35, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 6310495049049793872, guid: bde6df1ef59490e4eb7af316f8a24c35, type: 3}
       propertyPath: m_Name
       value: OptionsPanel
+      objectReference: {fileID: 0}
+    - target: {fileID: 6310495049049793872, guid: bde6df1ef59490e4eb7af316f8a24c35, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7914863471192892845, guid: bde6df1ef59490e4eb7af316f8a24c35, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
