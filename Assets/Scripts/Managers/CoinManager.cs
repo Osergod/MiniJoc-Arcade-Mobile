@@ -7,9 +7,11 @@ public class CoinManager : MonoBehaviour
     public static CoinManager Instance { get; private set; }
     
     [Header("UI")]
-    public TMP_Text coinCountText;
+    public TMP_Text coinCountTextHUD;
+    public TMP_Text coinCountTextStats;
     
     public int totalCoins = 0;
+    public int parcialCoins = 0;
     
     void Awake()
     {
@@ -28,12 +30,14 @@ public class CoinManager : MonoBehaviour
     {
         // Cargar monedas guardadas
         totalCoins = PlayerPrefs.GetInt("TotalCoins", 0);
+        parcialCoins = 0;
         UpdateUI();
     }
     
     public void AddCoin(int amount = 1)
     {
         totalCoins += amount;
+        parcialCoins += amount;
         PlayerPrefs.SetInt("TotalCoins", totalCoins);
         PlayerPrefs.Save();
         UpdateUI();
@@ -44,10 +48,11 @@ public class CoinManager : MonoBehaviour
     
     void UpdateUI()
     {
-        if (coinCountText != null)
-        {
-            coinCountText.text = totalCoins.ToString();
-        }
+        if (coinCountTextHUD != null)
+            coinCountTextHUD.text = parcialCoins.ToString();
+
+        if (coinCountTextStats != null)
+            coinCountTextStats.text = parcialCoins.ToString();
     }
     
     public int GetCoinCount()

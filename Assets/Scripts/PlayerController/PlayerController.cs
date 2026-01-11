@@ -1,6 +1,5 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine. SceneManagement;
 
 public class PlayerController :   MonoBehaviour
 {
@@ -12,8 +11,8 @@ public class PlayerController :   MonoBehaviour
     public Transform groundCheck;
     public LayerMask groundLayer;
 
-    [Header("Scene Management")]
-    public string gameOverSceneName = "GameOver"; // Nombre de la escena a cargar
+    [Header("Panel Management")]
+    public GameObject gameOverSceneName; // Nombre de la escena a cargar
 
     // === Configuración general ===
     [Header("Movement Settings")]
@@ -385,16 +384,20 @@ public class PlayerController :   MonoBehaviour
     /// Carga la escena configurada en el Inspector.
     /// </summary>
     private void OnObstacleHit(GameObject obstacle)
-    {
-        if (enableDebugLogs)
-            Debug.Log($"💥 ¡COLISIÓN CON OBSTÁCULO:  {obstacle.name}!");
+{
+    if (enableDebugLogs)
+        Debug.Log($"💥 ¡COLISIÓN CON OBSTÁCULO:  {obstacle.name}!");
 
-        // Pausar el juego brevemente (opcional)
-        Time.timeScale = 0.1f;
+    // Congelar tot el moviment i les físiques del jugador
+    rb.velocity = Vector3.zero;
+    rb.angularVelocity = Vector3.zero;
+    rb.isKinematic = true; // Atura totes les forces
+    enabled = false;       // Desactiva aquest script per que no actualitzi res més
 
-        // Esperar un pequeño momento y luego cargar la escena
-        StartCoroutine(LoadGameOverScene());
-    }
+    // Mostra el Game Over sense afectar el temps de la UI
+    gameOverSceneName.SetActive(true);
+}
+
 
     /// <summary>
     /// Corrutina para cargar la escena de Game Over con un pequeño retraso.
@@ -405,13 +408,7 @@ public class PlayerController :   MonoBehaviour
         
         Time.timeScale = 1f; // Restaurar el tiempo normal
 
-        if (string.IsNullOrEmpty(gameOverSceneName))
-        {
-            Debug.LogError("ERROR: No se ha asignado el nombre de la escena 'GameOver'");
-        }
-
-        Debug.Log($"Cargando escena:  {gameOverSceneName}");
-        SceneManager.LoadScene(gameOverSceneName);
+        gameOverSceneName.SetActive(true);
     }
 
     #endregion
