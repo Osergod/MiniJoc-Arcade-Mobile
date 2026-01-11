@@ -63,26 +63,15 @@ public class GeneralManager : MonoBehaviour
     {
         musicaActiva = PlayerPrefs.GetInt("MusicaActiva", 1) == 1;
         sfxActivados = PlayerPrefs.GetInt("SFXActivados", 1) == 1;
-        volumenMusica = PlayerPrefs.GetFloat("VolumenMusica", 0.7f);
-        volumenSFX = PlayerPrefs.GetFloat("VolumenSFX", 0.8f);
+        volumenMusica = PlayerPrefs.GetFloat("VolumenMusica", 0.5f);
+        volumenSFX = PlayerPrefs.GetFloat("VolumenSFX", 0.5f);
     }
     
     public void GuardarCambios()
     {
         GuardarConfiguracion();
     }
-    
-    public void ResetearAjustes()
-    {
-        musicaActiva = true;
-        sfxActivados = true;
-        volumenMusica = 0.7f;
-        volumenSFX = 0.8f;
-        
-        AplicarConfigAudio();
-        GuardarConfiguracion();
-    }
-    
+
     // ========== CONFIGURACIÓN DE AUDIO ==========
     
     void ConfigurarNuevoAudioManager()
