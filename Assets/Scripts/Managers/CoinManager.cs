@@ -9,6 +9,7 @@ public class CoinManager : MonoBehaviour
     [Header("UI")]
     public TMP_Text coinCountTextHUD;
     public TMP_Text coinCountTextStats;
+    public TMP_Text coinCountTextShop;
     
     public int totalCoins = 0;
     public int parcialCoins = 0;
@@ -32,6 +33,8 @@ public class CoinManager : MonoBehaviour
         totalCoins = PlayerPrefs.GetInt("TotalCoins", 0);
         parcialCoins = 0;
         UpdateUI();
+
+        coinCountTextShop.text = totalCoins.ToString();
     }
     
     public void AddCoin(int amount = 1)

@@ -662,8 +662,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c1d8d80ae2b5e744aa86c05fc3559cf7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  coinCountText: {fileID: 1061991873}
+  coinCountTextHUD: {fileID: 0}
+  coinCountTextStats: {fileID: 0}
+  coinCountTextShop: {fileID: 1061991873}
   totalCoins: 0
+  parcialCoins: 0
 --- !u!4 &1876130544 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 2786525682866408806, guid: 9c9a8e5109f89104ab5079f380535c91, type: 3}
