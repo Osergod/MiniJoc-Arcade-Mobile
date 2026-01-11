@@ -1,6 +1,6 @@
 using UnityEngine;
 
-[System. Serializable]
+[System.Serializable]
 public class GroundedState : IPlayerState
 {
     public void EnterState(PlayerController player)
@@ -8,25 +8,23 @@ public class GroundedState : IPlayerState
         player.verticalVelocity = 0f;
         player.LockYPosition();
 
-        if (player.animator != null)
+        if (player.animators != null)
         {
-            player.animator.SetTrigger("Land");
-            player.animator.SetBool("IsGrounded", true);
-            player.animator.SetBool("IsJumping", false);
-            player.animator.SetBool("IsSliding", false);
+            foreach (Animator anim in player.animators)
+            {
+                if (anim == null) continue;
+
+                anim.SetTrigger("Land");
+                anim.SetBool("IsGrounded", true);
+                anim.SetBool("IsJumping", false);
+                anim.SetBool("IsSliding", false);
+            }
         }
     }
 
-    public void UpdateState(PlayerController player)
-    {
-        // No hacer nada aquí, el cambio de estado se maneja en Jump/Slide
-    }
+    public void UpdateState(PlayerController player) { }
 
-    public void FixedUpdateState(PlayerController player)
-    {
-    }
+    public void FixedUpdateState(PlayerController player) { }
 
-    public void ExitState(PlayerController player)
-    {
-    }
+    public void ExitState(PlayerController player) { }
 }
